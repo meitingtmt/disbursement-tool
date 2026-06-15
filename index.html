@@ -3,248 +3,303 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Elitez — Monthly Disbursement Table Generator</title>
+<title>Disbursement Table Generator — Elitez Group</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
-:root{
-  --navy:#0e2a47;--navy2:#16395e;--orange:#f08a1d;--bg:#f4f6f9;--card:#fff;
-  --border:#dfe5ec;--text:#1c2733;--text2:#5d6b7a;--red:#d64545;--radius:10px;
-}
+/* ── reset & tokens ── */
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);font-size:13px;line-height:1.5}
-.topbar{background:var(--navy);color:#fff;padding:12px 24px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:50;box-shadow:0 2px 8px rgba(14,42,71,.25)}
-.mark{width:32px;height:32px;border-radius:8px;background:var(--orange);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;color:var(--navy)}
-.topbar h1{font-size:15px;font-weight:700}
-.sub{font-size:11px;color:#9fb3c8}
-.acts{margin-left:auto;display:flex;gap:8px}
-.wrap{display:grid;grid-template-columns:440px 1fr;gap:20px;padding:20px 28px;max-width:1560px;margin:0 auto;align-items:start}
-.left-col{min-width:0;grid-column:1}
-.right-col{min-width:0;grid-column:2;position:sticky;top:76px}
-@media(max-width:1000px){.wrap{grid-template-columns:1fr}.left-col{grid-column:1}.right-col{grid-column:1;position:static}}
-.card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:12px}
-.card h2{font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--navy);margin-bottom:10px;display:flex;align-items:center;gap:7px}
-.card h2::before{content:"";width:3px;height:13px;background:var(--orange);border-radius:2px;flex-shrink:0}
-.fg{margin-bottom:9px}
-.fg label{display:block;font-size:11px;font-weight:600;color:var(--text2);margin-bottom:3px}
-input,select{width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:5px;font:inherit;font-size:12.5px;background:#fff;color:var(--text)}
-input:focus,select:focus{outline:2px solid rgba(240,138,29,.35);border-color:var(--orange)}
+:root{
+  --navy:#0e2a47;--navy2:#16395e;--orange:#f08a1d;
+  --bg:#f2f4f7;--card:#fff;--border:#dde3ec;--border2:#c5cdd8;
+  --text:#1a2533;--text2:#5a6878;--text3:#8a97a6;
+  --red:#c93535;--radius:10px;
+}
+body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--text);font-size:13px;line-height:1.5;min-height:100vh}
+
+/* ── topbar ── */
+.topbar{background:var(--navy);color:#fff;padding:0 24px;height:52px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:100;box-shadow:0 2px 10px rgba(14,42,71,.3)}
+.topbar-logo{width:32px;height:32px;border-radius:8px;background:var(--orange);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;color:var(--navy);flex-shrink:0}
+.topbar-title{font-size:14px;font-weight:700}
+.topbar-sub{font-size:11px;color:#8aaec8;margin-top:1px}
+.topbar-actions{margin-left:auto;display:flex;gap:8px;align-items:center}
+.btn-topbar{padding:6px 13px;border-radius:6px;font:inherit;font-size:12px;font-weight:600;cursor:pointer;border:1.5px solid;transition:all .15s}
+.btn-topbar.ghost{background:transparent;border-color:rgba(255,255,255,.3);color:rgba(255,255,255,.85)}
+.btn-topbar.ghost:hover{border-color:var(--orange);color:#fff}
+.btn-topbar.primary{background:var(--orange);border-color:var(--orange);color:#fff}
+.btn-topbar.primary:hover{background:#d97a12}
+
+/* ── main layout: LEFT form | RIGHT preview ── */
+.main{display:grid;grid-template-columns:460px 1fr;min-height:calc(100vh - 52px)}
+
+/* LEFT column */
+.form-col{background:var(--bg);padding:20px;overflow-y:auto;border-right:1px solid var(--border)}
+
+/* RIGHT column */
+.preview-col{background:#eaecf0;padding:20px;overflow-y:auto}
+.preview-inner{background:var(--card);border-radius:var(--radius);border:1px solid var(--border);overflow:hidden;position:sticky;top:20px}
+.preview-tab{background:var(--navy2);color:#fff;padding:7px 16px;font-size:11.5px;font-weight:600;display:flex;justify-content:space-between;align-items:center}
+.preview-tab-stat{color:#ffd9a8;font-size:11px;font-weight:400}
+.preview-body{padding:22px 26px;overflow-x:auto}
+.preview-empty{padding:60px 30px;text-align:center;color:var(--text2)}
+.preview-empty-icon{font-size:32px;margin-bottom:10px;opacity:.4}
+.preview-empty-title{font-size:14px;font-weight:600;color:var(--text);margin-bottom:5px}
+.preview-empty-sub{font-size:12px;max-width:240px;margin:0 auto;line-height:1.6}
+
+/* collapse to single column on narrow screens */
+@media(max-width:1100px){
+  .main{grid-template-columns:1fr}
+  .form-col{border-right:none;border-bottom:1px solid var(--border)}
+  .preview-inner{position:static}
+}
+
+/* ── form cards ── */
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:14px}
+.card-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--navy);margin-bottom:11px;display:flex;align-items:center;gap:7px}
+.card-title::before{content:"";width:3px;height:13px;background:var(--orange);border-radius:2px;flex-shrink:0}
+
+/* ── form fields ── */
+.fg{margin-bottom:10px}
+.fg:last-child{margin-bottom:0}
+.fg label{display:block;font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px}
+.fg label .opt{font-weight:400;color:var(--text3);font-size:10.5px}
+input[type=text],input[type=number],input[type=date],select,textarea{width:100%;padding:7px 9px;border:1.5px solid var(--border);border-radius:6px;font:inherit;font-size:12.5px;background:#fff;color:var(--text);transition:border .12s}
+input[type=text]:focus,input[type=number]:focus,input[type=date]:focus,select:focus,textarea:focus{outline:none;border-color:var(--orange);box-shadow:0 0 0 3px rgba(240,138,29,.12)}
 input[type=number]{font-family:'DM Mono',monospace}
-input[type=checkbox]{width:15px;height:15px;accent-color:var(--orange);cursor:pointer}
-.r2{display:grid;grid-template-columns:1fr 1fr;gap:7px}
-.r3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px}
-.btn{padding:7px 13px;border-radius:6px;border:1px solid var(--border);background:#fff;font:inherit;font-size:12px;font-weight:600;cursor:pointer;color:var(--text)}
+input[type=checkbox]{width:15px;height:15px;accent-color:var(--orange);cursor:pointer;flex-shrink:0}
+textarea{resize:vertical;line-height:1.5}
+.r2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.r3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+
+/* ── buttons ── */
+.btn{padding:6px 12px;border-radius:6px;border:1px solid var(--border);background:#fff;font:inherit;font-size:12px;font-weight:600;cursor:pointer;color:var(--text);transition:all .12s}
 .btn:hover{border-color:var(--navy);color:var(--navy)}
-.btn.pr{background:var(--orange);border-color:var(--orange);color:#fff}
-.btn.pr:hover{background:#d97a12}
-.btn.gh{background:transparent;border-color:#3b5a7d;color:#cfe0f2}
-.btn.gh:hover{border-color:var(--orange);color:var(--orange)}
 .btn.sm{padding:3px 8px;font-size:11px}
-.btn.xs{padding:3px 8px;font-size:11px}
-.btn.dn{color:var(--red)}
-.btn.add{color:var(--navy)}
-.xbtn{border:none;background:none;color:var(--text2);cursor:pointer;font-size:15px;line-height:1;padding:0 2px}
-.xbtn:hover{color:var(--red)}
-.grp{border:1px solid var(--border);border-radius:8px;padding:11px;margin-bottom:9px;background:#fafbfd}
-.grp-header{display:flex;align-items:center;gap:8px;padding-bottom:9px;margin-bottom:9px;border-bottom:1px solid var(--border)}
-.grp-accent{width:4px;height:28px;border-radius:3px;flex-shrink:0}
-.grp-accent.wp{background:#f08a1d}.grp-accent.sp{background:#0e7b6c}
-.grp-accent.ep{background:#16395e}.grp-accent.local{background:#1a7a4a}
-.grp-label{font-size:12px;font-weight:700;color:var(--text)}
-.grp-type{font-size:10.5px;color:var(--text2);margin-top:1px}
-.pass-badge{display:inline-flex;align-items:center;font-size:10px;font-weight:700;padding:1px 7px;border-radius:20px;letter-spacing:.3px;margin-left:4px}
+.btn.add{border-style:dashed;color:var(--navy2);border-color:var(--navy2)}
+.btn.add:hover{background:#eef3f8;border-style:solid}
+.btn.dn{color:var(--red);border-color:#fde0e0;background:#fef6f6}
+.btn.dn:hover{background:#fde0e0}
+.xbtn{border:none;background:none;color:var(--text3);cursor:pointer;font-size:15px;padding:1px 4px;border-radius:3px}
+.xbtn:hover{color:var(--red);background:#fef6f6}
+.chk-row{display:flex;align-items:flex-start;gap:8px;margin-bottom:7px;cursor:pointer;padding:5px 6px;border-radius:6px}
+.chk-row:hover{background:#f6f8fb}
+.chk-lbl{font-size:12.5px;font-weight:600;color:var(--text)}
+.chk-sub{font-size:11px;color:var(--text2);margin-top:1px}
+.hint{font-size:10.5px;color:var(--text3);margin-top:4px;line-height:1.5}
+
+/* ── worker group ── */
+.grp{border:1px solid var(--border);border-radius:8px;margin-bottom:10px;overflow:hidden;background:#fff}
+.grp-hdr{display:flex;align-items:center;gap:9px;padding:9px 12px;background:#f9fafb;border-bottom:1px solid var(--border)}
+.grp-bar{width:4px;height:26px;border-radius:3px;flex-shrink:0}
+.grp-bar.wp{background:#f08a1d}.grp-bar.sp{background:#0e7b6c}
+.grp-bar.ep{background:#16395e}.grp-bar.local{background:#1a7a4a}
+.grp-name{font-size:12px;font-weight:700;color:var(--text);flex:1}
+.grp-name-sub{font-size:10.5px;color:var(--text2);margin-top:1px}
+.pass-badge{display:inline-flex;font-size:10px;font-weight:700;padding:1px 7px;border-radius:20px;letter-spacing:.2px;margin-left:4px}
 .pass-badge.wp{background:#fef3e2;color:#a05800;border:1px solid #f5d6a0}
 .pass-badge.sp{background:#e6f4f1;color:#0a5c50;border:1px solid #a8d8d1}
 .pass-badge.ep{background:#e8eef6;color:#1d4a7a;border:1px solid #b0c4dc}
 .pass-badge.local{background:#e6f4ec;color:#145a38;border:1px solid #a8d4bc}
-.grp-body{}
-.gh2{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px;gap:7px}
-.tag{font-size:10.5px;font-weight:700;color:var(--navy);background:#fdf0df;border:1px solid #f5d6ad;padding:2px 7px;border-radius:20px;white-space:nowrap}
-.auto{font-family:'DM Mono',monospace;font-size:12px;background:#eef2f7;border:1px dashed var(--border);border-radius:5px;padding:6px 8px;color:var(--text2)}
-.auto-val{font-family:'DM Mono',monospace;font-size:12px;background:#eef2f7;border:1px dashed var(--border);border-radius:5px;padding:6px 8px;color:var(--text2)}
-.svcrow{display:grid;grid-template-columns:1fr 90px 90px 24px;gap:5px;align-items:center;margin-bottom:5px;padding:3px 0;border:1px solid transparent;border-radius:4px;transition:border-color .15s}
-.svcrow:hover{background:#fafbfd}.svcrow>div{display:flex;align-items:center;gap:6px}.svcrow>div input{flex:1}
-.svcrow-hdr{display:grid;grid-template-columns:1fr 90px 90px 24px;gap:5px;margin-bottom:4px}
-.svcrow-hdr span{font-size:10px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.4px}
-.chk{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:500;color:var(--text2);cursor:pointer;margin-bottom:8px}
-.chk-row{display:flex;align-items:flex-start;gap:7px;font-size:12px;color:var(--text);cursor:pointer;margin-bottom:6px}
-.chk-row input{margin-top:2px;flex-shrink:0}
-.chk-row .chk-label{font-weight:600;color:var(--text)}
-.chk-row .chk-sub{font-size:11px;color:var(--text2);margin-top:1px}
-.hint{font-size:10.5px;color:var(--text2);margin-top:4px}
-.mini-section{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text2);margin:12px 0 7px;padding-bottom:4px;border-bottom:1px solid var(--border)}
-.stat-grid{display:grid;grid-template-columns:110px 1fr;gap:4px 10px;align-items:center;background:#f7f8fa;border:1px solid var(--border);border-radius:6px;padding:8px}
-.stat-grid .sg-label{font-size:11.5px;color:var(--text2);font-weight:500}
-.disc-area{background:#fffbf5;border:1px solid #f5d6a0;border-radius:5px;padding:8px 10px;font-size:12px;color:var(--text2);font-style:italic;line-height:1.6;width:100%;resize:vertical;font:inherit}
-/* step cards kept as plain cards */
-.step{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:12px}
-.step-header{display:flex;align-items:center;gap:9px;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--border)}
-.step-num{width:22px;height:22px;border-radius:50%;background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0}
-.step-title{font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--navy)}
-.step-desc{font-size:10.5px;color:var(--text2);margin-top:1px}
-.step-body{}
-/* preview */
-.prv{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:14px}
-.pvtab{background:var(--navy2);color:#fff;font-size:11px;font-weight:700;letter-spacing:.4px;padding:6px 14px;display:flex;justify-content:space-between}
-.pvtab .pv-stat{color:#ffd9a8;font-family:'DM Mono',monospace;font-weight:400}
-.xlt{padding:20px 28px;overflow-x:auto}
-.xlt table{border-collapse:collapse;font-family:'Inter',sans-serif;font-size:12.5px}
-.xlt td{padding:3px 8px;white-space:pre-line;vertical-align:middle;min-width:40px;font-family:'Inter',sans-serif}
-.xlt td.a{width:300px;max-width:300px}
-.xlt td.b{width:100px;text-align:right;font-family:'Inter',sans-serif}
-.xlt td.p{width:44px;text-align:right;font-family:'Inter',sans-serif;color:var(--text2)}
-.xlt td.t{width:108px;text-align:right;font-family:'Inter',sans-serif;font-weight:600}
-.xlt td.c{width:110px;font-size:11px;color:var(--text2);font-family:'Inter',sans-serif}
+.grp-body{padding:12px}
+.mini-sec{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text2);margin:12px 0 7px;padding-bottom:4px;border-bottom:1px solid var(--border)}
+.auto-val{font-family:'DM Mono',monospace;font-size:12px;background:#f2f4f7;border:1.5px dashed var(--border2);border-radius:6px;padding:7px 9px;color:var(--text2)}
+
+/* ── services ── */
+.svc-hdr{display:grid;grid-template-columns:1fr 88px 88px 26px;gap:5px;padding:0 4px;margin-bottom:4px}
+.svc-hdr span{font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.4px}
+.svcrow{display:grid;grid-template-columns:1fr 88px 88px 26px;gap:5px;align-items:center;margin-bottom:5px;padding:5px 4px;border-radius:5px;border:1px solid transparent}
+.svcrow:hover{background:#f9fafb;border-color:var(--border)}
+.svc-name-cell{display:flex;align-items:center;gap:5px}
+.drag-handle{color:var(--text3);font-size:13px;cursor:grab;user-select:none;flex-shrink:0}
+.drag-handle:hover{color:var(--navy)}
+
+/* ── stat remarks grid ── */
+.stat-grid{display:grid;grid-template-columns:105px 1fr;gap:4px 8px;align-items:center;background:#f9fafb;border:1px solid var(--border);border-radius:6px;padding:9px}
+.sg-lbl{font-size:11.5px;color:var(--text2);font-weight:500}
+
+/* ── disclaimer ── */
+.disc-area{background:#fffbf5;border:1.5px solid #f5d6a0;border-radius:6px;padding:9px 11px;font-size:12px;color:var(--text2);font-style:italic;line-height:1.6;width:100%;resize:vertical;font:inherit;min-height:70px}
+
+/* ── quick guide ── */
+.guide-box{background:#f0f4f8;border:1px solid #dde4ed;border-radius:7px;padding:10px 12px;margin-bottom:11px;font-size:11.5px;color:var(--text2);line-height:1.7}
+
+/* ── preview table ── */
+.xlt table{border-collapse:collapse;font-family:'Inter',sans-serif;font-size:12.5px;width:100%}
+.xlt td{padding:3px 8px;white-space:pre-line;vertical-align:middle;font-family:'Inter',sans-serif}
+.xlt td.a{width:55%;max-width:55%}
+.xlt td.b{width:20%;text-align:right}
+.xlt td.p{width:8%;text-align:right;color:var(--text2)}
+.xlt td.t{width:17%;text-align:right;font-weight:600}
+.xlt td.c{width:15%;font-size:11px;color:var(--text2)}
 .xlt .bordered td{border:1px solid #ccc}
-.xlt .title td{font-weight:700;font-size:14px;border:none!important;padding-bottom:4px;font-family:'Inter',sans-serif}
+.xlt .title td{font-weight:700;font-size:14px;border:none!important;padding-bottom:3px}
+.xlt .meta-row td{border:none!important;padding:1px 8px;font-size:11px;color:var(--text2)}
+.xlt .meta-row.entity td{font-size:12px;font-weight:700;color:var(--navy);padding-bottom:2px}
 .xlt .sechead td{font-weight:700;background:#f4f6f9}
 .xlt .bold td.a,.xlt .bold td.b,.xlt .bold td.t{font-weight:700}
-.xlt .disclaimer td{font-size:10.5px;color:var(--text2);font-style:italic;border:none!important;padding-top:10px;line-height:1.6;font-family:'Inter',sans-serif}
-.empty-state{padding:60px 40px;text-align:center;color:var(--text2)}
-.empty-icon{font-size:36px;margin-bottom:12px;opacity:.4}
-.empty-title{font-size:15px;font-weight:600;color:var(--text);margin-bottom:6px}
-.empty-sub{font-size:12.5px;color:var(--text2);max-width:280px;margin:0 auto}
-/* welcome overlay */
-.welcome-overlay{position:fixed;inset:0;background:rgba(14,42,71,.7);z-index:300;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(3px)}
-.welcome-box{background:#fff;border-radius:16px;padding:36px 40px;max-width:500px;width:90%;box-shadow:0 16px 48px rgba(14,42,71,.25);text-align:center}
-.welcome-logo{width:48px;height:48px;border-radius:12px;background:var(--orange);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:22px;color:var(--navy);margin:0 auto 16px}
-.welcome-title{font-size:20px;font-weight:800;color:var(--navy);margin-bottom:6px}
-.welcome-sub{font-size:13px;color:var(--text2);margin-bottom:28px;line-height:1.6}
-.welcome-options{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.welcome-option{border:2px solid var(--border);border-radius:12px;padding:20px 16px;cursor:pointer;transition:all .18s;text-align:left}
-.welcome-option:hover{border-color:var(--orange);background:#fffbf5;transform:translateY(-2px);box-shadow:0 4px 16px rgba(240,138,29,.15)}
-.welcome-option .wo-icon{font-size:28px;margin-bottom:10px}
-.welcome-option .wo-title{font-size:14px;font-weight:700;color:var(--navy);margin-bottom:4px}
-.welcome-option .wo-desc{font-size:11.5px;color:var(--text2);line-height:1.5}
+.xlt .disclaimer-row td{font-size:10.5px;color:var(--text2);font-style:italic;border:none!important;padding-top:10px;line-height:1.6}
+
+/* ── welcome overlay ── */
+.welcome{position:fixed;inset:0;background:rgba(14,42,71,.72);z-index:500;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
+.welcome-box{background:#fff;border-radius:16px;padding:36px 40px;max-width:480px;width:90%;box-shadow:0 16px 48px rgba(14,42,71,.25);text-align:center}
+.welcome-logo{width:44px;height:44px;border-radius:11px;background:var(--orange);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:20px;color:var(--navy);margin:0 auto 14px}
+.welcome-h{font-size:19px;font-weight:800;color:var(--navy);margin-bottom:6px}
+.welcome-p{font-size:13px;color:var(--text2);margin-bottom:24px;line-height:1.6}
+.welcome-opts{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.welcome-opt{border:2px solid var(--border);border-radius:11px;padding:18px 14px;cursor:pointer;transition:all .18s;text-align:left}
+.welcome-opt:hover{border-color:var(--orange);background:#fffbf5;transform:translateY(-2px);box-shadow:0 4px 16px rgba(240,138,29,.14)}
+.wo-icon{font-size:26px;margin-bottom:9px}
+.wo-h{font-size:13.5px;font-weight:700;color:var(--navy);margin-bottom:3px}
+.wo-p{font-size:11.5px;color:var(--text2);line-height:1.5}
+
+/* ── pdf modal ── */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:400;display:none;align-items:center;justify-content:center}
+.modal-bg.show{display:flex}
+.modal-box{background:#fff;border-radius:12px;padding:24px 28px;max-width:460px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,.18)}
+.modal-h{font-size:15px;font-weight:700;color:var(--navy);margin-bottom:10px}
 </style>
 </head>
 <body>
-<div class="topbar">
-  <div class="mark">E</div>
-  <div><div style="font-size:15px;font-weight:700;letter-spacing:-.1px">Disbursement Table Generator</div><div class="sub">Elitez Group · Internal tool</div></div>
-  <div class="acts">
-    <button class="btn gh" onclick="document.getElementById('pdfUpload').click()" title="Re-upload a previously generated PDF to prefill the form">↑ Load from PDF</button>
-    <input type="file" id="pdfUpload" accept=".pdf" style="display:none" onchange="loadFromPDF(this)">
-    <button class="btn gh" onclick="exportPDF()">↓ PDF</button>
-    <button class="btn pr" onclick="exportExcel()">↓ Download Excel</button>
-  </div>
-  <!-- PDF load result modal -->
-  <div id="pdfModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;align-items:center;justify-content:center">
-    <div style="background:#fff;border-radius:12px;padding:24px 28px;max-width:480px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,.2)">
-      <div style="font-size:15px;font-weight:700;color:#0e2a47;margin-bottom:6px">PDF loaded</div>
-      <div id="pdfModalBody" style="font-size:13px;color:#5d6b7a;line-height:1.6;margin-bottom:16px"></div>
-      <div style="display:flex;gap:8px;justify-content:flex-end">
-        <button class="btn sm" onclick="document.getElementById('pdfModal').style.display='none'">Close</button>
-      </div>
-    </div>
-  </div>
 
-<!-- Welcome overlay -->
-<div class="welcome-overlay" id="welcomeOverlay">
+<!-- ── TOPBAR ── -->
+<div class="topbar">
+  <div class="topbar-logo">E</div>
+  <div>
+    <div class="topbar-title">Disbursement Table Generator</div>
+    <div class="topbar-sub">Elitez Group · Internal tool</div>
+  </div>
+  <div class="topbar-actions">
+    <button class="btn-topbar ghost" onclick="document.getElementById('pdfUpload').click()">↑ Load from PDF</button>
+    <input type="file" id="pdfUpload" accept=".pdf" style="display:none" onchange="loadFromPDF(this)">
+    <button class="btn-topbar ghost" onclick="exportPDF()">↓ PDF</button>
+    <button class="btn-topbar primary" onclick="exportExcel()">↓ Download Excel</button>
+  </div>
+</div>
+
+<!-- ── WELCOME OVERLAY ── -->
+<div class="welcome" id="welcomeOverlay">
   <div class="welcome-box">
     <div class="welcome-logo">E</div>
-    <div class="welcome-title">Disbursement Table Generator</div>
-    <div class="welcome-sub">Create a new monthly disbursement table, or load and amend an existing one from a previously downloaded PDF.</div>
-    <div class="welcome-options">
-      <div class="welcome-option" onclick="startNew()">
+    <div class="welcome-h">Disbursement Table Generator</div>
+    <div class="welcome-p">Create a new monthly disbursement table, or load and amend one from a previously downloaded PDF.</div>
+    <div class="welcome-opts">
+      <div class="welcome-opt" onclick="startNew()">
         <div class="wo-icon">📋</div>
-        <div class="wo-title">New table</div>
-        <div class="wo-desc">Start fresh — fill in client and worker details from scratch.</div>
+        <div class="wo-h">New table</div>
+        <div class="wo-p">Start fresh — fill in client and worker details from scratch.</div>
       </div>
-      <div class="welcome-option" onclick="document.getElementById('pdfUploadWelcome').click()">
+      <div class="welcome-opt" onclick="document.getElementById('pdfUploadWelcome').click()">
         <div class="wo-icon">✏️</div>
-        <div class="wo-title">Amend existing</div>
-        <div class="wo-desc">Upload a PDF you previously generated — we'll prefill all the fields for you.</div>
+        <div class="wo-h">Amend existing</div>
+        <div class="wo-p">Upload a PDF you previously generated to prefill all fields.</div>
         <input type="file" id="pdfUploadWelcome" accept=".pdf" style="display:none" onchange="loadFromPDFWelcome(this)">
       </div>
     </div>
   </div>
 </div>
 
-<div class="wrap">
-<div class="left-col">
-
-<div class="card">
-  <h2>Client details</h2>
-    <div class="r2">
-      <div class="fg"><label>Our entity name</label><input id="entityName" value="Elitez Group of Companies" placeholder="e.g. Elitez Pte Ltd" oninput="recalc()"></div>
-      <div class="fg"><label>Prepared by</label><input id="cBy" placeholder="Your name" oninput="recalc()"></div>
-    </div>
-    <div class="r2">
-      <div class="fg"><label>Client name</label><input id="cName" placeholder="e.g. ABC Pte Ltd" oninput="recalc()"></div>
-      <div class="fg"><label>Date</label><input id="cDate" type="date" oninput="recalc()"></div>
-    </div>
-    <label class="chk-row"><input type="checkbox" id="chkBGST" checked onchange="recalc()"><div><div class="chk-label">Show "Rate (Before GST)" as column header</div></div></label>
-    <label class="chk-row" style="margin-top:4px"><input type="checkbox" id="chkRemarks" onchange="renderGroups();recalc()"><div><div class="chk-label">Include Remarks column</div><div class="chk-sub">Adds a column for notes like "Waived off" or "Usual price: $55"</div></div></label>
-
-</div>
-
-<div class="card">
-  <h2>Worker groups</h2>
-    <div style="background:#f0f4f8;border:1px solid #dde4ed;border-radius:6px;padding:9px 11px;margin-bottom:10px;font-size:11.5px;color:var(--text2);line-height:1.6">
-      <span style="font-weight:700;color:var(--navy)">💡 Quick guide</span><br>
-      <b>Same salary for all workers?</b> Use 1 group, set the pax count, tick "same package".<br>
-      <b>Different salaries?</b> Add one group per worker (or per salary tier) — each becomes its own Excel tab.
-    </div>
-    <div id="gList"></div>
-    <button class="btn sm" onclick="addGroup()" style="margin-top:4px">＋ Add worker group</button>
-
-</div>
-
-<div class="card">
-  <h2>Admin / service fees</h2>
-  <div class="fg"><label>Fee type</label>
-    <select id="selFee" onchange="renderFeeFields();recalc()">
-      <option value="none">No admin fee</option>
-      <option value="flat" selected>Flat monthly fee</option>
-      <option value="max">Higher of $X or Y% of disbursement</option>
-      <option value="pct">% of disbursement (no floor)</option>
-      <option value="lump">One-time lump sum (12 months)</option>
-      <option value="tiered">Tiered (base fee + % on extra salary)</option>
-    </select>
+<!-- ── PDF RESULT MODAL ── -->
+<div class="modal-bg" id="pdfModal" onclick="if(event.target===this)this.classList.remove('show')">
+  <div class="modal-box">
+    <div class="modal-h">PDF loaded</div>
+    <div id="pdfModalBody" style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:16px"></div>
+    <div style="text-align:right"><button class="btn sm" onclick="document.getElementById('pdfModal').classList.remove('show')">Close</button></div>
   </div>
-  <div id="feeFields"></div>
-  <div class="fg"><label>Fee label (appears on sheet)</label><input id="feeLabel" value="Admin Fees" oninput="recalc()"></div>
-  </div><!-- fees end -->
+</div>
 
-<div class="card">
-  <h2>Payment structure</h2>
-  <div class="fg"><label>Billing style</label>
-    <select id="selPay" onchange="renderPayFields();recalc()">
-      <option value="simple" selected>Simple — Total Charges Per Month</option>
-      <option value="staged">Staged — 1st Payment / 2nd Payment / Subsequent</option>
-      <option value="deposit">Deposit shown separately, then monthly</option>
-    </select>
+<!-- ── MAIN: LEFT form | RIGHT preview ── -->
+<div class="main">
+
+  <!-- LEFT: form -->
+  <div class="form-col">
+
+    <div class="card">
+      <div class="card-title">Client details</div>
+      <div class="r2">
+        <div class="fg"><label>Our entity name</label><input id="entityName" value="Elitez Group of Companies" placeholder="e.g. Elitez Pte Ltd" oninput="recalc()"></div>
+        <div class="fg"><label>Prepared by</label><input id="cBy" placeholder="Your name" oninput="recalc()"></div>
+      </div>
+      <div class="r2">
+        <div class="fg"><label>Client name</label><input id="cName" placeholder="e.g. ABC Pte Ltd" oninput="recalc()"></div>
+        <div class="fg"><label>Date</label><input id="cDate" type="date" oninput="recalc()"></div>
+      </div>
+      <label class="chk-row"><input type="checkbox" id="chkBGST" checked onchange="recalc()"><div><div class="chk-lbl">Show "Rate (Before GST)" as column header</div></div></label>
+      <label class="chk-row"><input type="checkbox" id="chkRemarks" onchange="renderGroups();recalc()"><div><div class="chk-lbl">Include Remarks column</div><div class="chk-sub">Adds a column for notes like "Waived off" or "Usual price: $55"</div></div></label>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Worker groups</div>
+      <div class="guide-box">
+        <span style="font-weight:700;color:var(--navy)">💡 Quick guide</span><br>
+        <b>Same salary for all workers?</b> Use 1 group, set the pax count, tick "same package".<br>
+        <b>Different salaries?</b> Add one group per worker — each becomes its own Excel tab.
+      </div>
+      <div id="gList"></div>
+      <button class="btn add sm" onclick="addGroup()">＋ Add worker group</button>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Admin &amp; service fees</div>
+      <div class="fg"><label>Fee type</label>
+        <select id="selFee" onchange="renderFeeFields();recalc()">
+          <option value="none">No admin fee</option>
+          <option value="flat" selected>Flat monthly fee</option>
+          <option value="max">Higher of $X or Y% of disbursement</option>
+          <option value="pct">% of disbursement (no floor)</option>
+          <option value="lump">One-time lump sum (12 months)</option>
+          <option value="tiered">Tiered (base fee + % on extra salary)</option>
+        </select>
+      </div>
+      <div id="feeFields"></div>
+      <div class="fg"><label>Fee label <span class="opt">(appears on sheet)</span></label><input id="feeLabel" value="Admin Fees" oninput="recalc()"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Payment structure</div>
+      <div class="fg"><label>Billing style</label>
+        <select id="selPay" onchange="renderPayFields();recalc()">
+          <option value="simple" selected>Simple — Total Charges Per Month</option>
+          <option value="staged">Staged — 1st / 2nd / Subsequent payments</option>
+          <option value="deposit">Deposit shown separately, then monthly</option>
+        </select>
+      </div>
+      <div id="payFields"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Optional services <span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:11px;color:var(--text2)">— quoted, not added to monthly total</span></div>
+      <div class="svc-hdr"><span>Service name</span><span>Rate (S$)</span><span>Remarks</span><span></span></div>
+      <div id="svcList"></div>
+      <button class="btn add sm" onclick="addSvc()" style="margin-top:5px">＋ Add service</button>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Disclaimer</div>
+      <div class="fg"><label>Statement <span class="opt">(printed at bottom of table)</span></label>
+        <textarea id="disclaimer" class="disc-area" oninput="recalc()">All charges above are computed based on the employee's declared salary at the time of billing. Charges are subject to change whenever the employee's salary package is revised. Elitez Group reserves the right to adjust the monthly disbursement accordingly.</textarea>
+      </div>
+    </div>
+
+  </div><!-- /form-col -->
+
+  <!-- RIGHT: preview -->
+  <div class="preview-col">
+    <div class="preview-inner" id="prvArea">
+      <div class="preview-empty">
+        <div class="preview-empty-icon">📋</div>
+        <div class="preview-empty-title">Live preview</div>
+        <div class="preview-empty-sub">Fill in the form on the left to see your disbursement table here.</div>
+      </div>
+    </div>
   </div>
-  <div id="payFields"></div>
 
-</div>
-
-<div class="card">
-  <h2>Optional services</h2>
-    <div class="svcrow-hdr"><span>Service name</span><span>Rate (S$)</span><span>Remarks</span><span></span></div>
-    <div id="svcList"></div>
-    <button class="btn add xs" onclick="addSvc()" style="margin-top:6px">＋ Add service</button>
-
-</div>
-
-<div class="card">
-  <h2>Disclaimer statement</h2>
-  <div class="fg">
-    <label>Statement <span class="opt">(edit as needed)</span></label>
-    <textarea id="disclaimer" rows="3" class="disc-area" oninput="recalc()">All charges above are computed based on the employee's declared salary at the time of billing. Charges are subject to change whenever the employee's salary package is revised. Elitez Group reserves the right to adjust the monthly disbursement accordingly.</textarea>
-
-</div>
-</div><!-- end left -->
-
-<div id="prvArea" class="right-col"><div class="prv"><div class="empty-state"><div class="empty-icon">📋</div><div class="empty-title">Your table will appear here</div><div class="empty-sub">Fill in client details and add a worker group to see the live preview.</div></div></div></div>
-
-</div><!-- end wrap -->
+</div><!-- /main -->
 
 <script>
+
 const TYPES={
   local:{label:'Local Worker',short:'LOC',levy:0,cpf:true},
   wp:{label:'Work Permit',short:'WP',levy:800,cpf:false},
@@ -301,13 +356,13 @@ function removeGrossRow(gid,rid){
 function renderGroups(){
   $('gList').innerHTML=groups.map((g,i)=>`
   <div class="grp">
-    <div class="grp-header">
-      <div class="grp-accent ${g.type}"></div>
+    <div class="grp-hdr">
+      <div class="grp-bar ${g.type}"></div>
       <div style="flex:1">
-        <div class="grp-label">Group ${i+1} <span class="pass-badge ${g.type}">${TYPES[g.type].label}</span></div>
-        <div class="grp-type">Tab name: ${tabLabel(g,i)}</div>
+        <div class="grp-name">Group ${i+1} <span class="pass-badge ${g.type}">${TYPES[g.type].label}</span></div>
+        <div class="grp-name-sub">Tab name: ${tabLabel(g,i)}</div>
       </div>
-      <button class="btn xs dn" onclick="removeGroup(${g.id})">Remove</button>
+      <button class="btn sm dn" onclick="removeGroup(${g.id})">Remove</button>
     </div>
     <div class="grp-body">
     <div class="r2">
@@ -329,7 +384,7 @@ function renderGroups(){
       </div>
       <div class="hint" style="margin-top:3px">${g.sameSalary||g.pax<=1?'Table will show rate × pax = total for each line.':'Different salaries? Uncheck and add a separate group per worker.'}</div>
     </div>
-    <div class="mini-section">💰 Gross salary</div>
+    <div class="mini-sec">💰 Gross salary</div>
     <div class="fg"><label>Components</label>
       ${g.grossRows.map((r,ri)=>{const rmk=document.getElementById('chkRemarks')?.checked;return`
       <div style="display:grid;grid-template-columns:1fr 90px ${rmk?'90px ':''} 20px;gap:5px;margin-bottom:4px">
@@ -340,7 +395,7 @@ function renderGroups(){
       </div>`}).join('')}
       <button class="btn sm" onclick="addGrossRow(${g.id})" style="margin-top:2px">＋ row</button>
     </div>
-    <div class="mini-section">📅 Bonus / AWS accrual</div>
+    <div class="mini-sec">📅 Bonus / AWS accrual</div>
     <div class="r2">
       <div class="fg"><label>AWS mode</label>
         <select onchange="upG(${g.id},'awsMode',this.value)">
@@ -351,11 +406,11 @@ function renderGroups(){
       <div class="fg"><label>${g.awsMode==='custom'?'AWS amount (S$)':'Auto preview'}</label>
         ${g.awsMode==='custom'
           ?`<input type="number" min="0" value="${g.awsAmt}" oninput="upG(${g.id},'awsAmt',this.value)">`
-          :`<div class="auto">${g.awsMode==='auto'?fmtS((g.grossRows[0]?.val||0)/12):'—'}</div>`}
+          :`<div class="auto-val">${g.awsMode==='auto'?fmtS((g.grossRows[0]?.val||0)/12):'—'}</div>`}
       </div>
     </div>
 
-    <div class="mini-section">⚖️ Statutory obligations</div>
+    <div class="mini-sec">⚖️ Statutory obligations</div>
     <div class="r3">
       <div class="fg"><label>Levy / mth (S$)</label><input type="number" min="0" value="${g.levy}" oninput="upG(${g.id},'levy',this.value)"></div>
       <div class="fg"><label>Medical ins. (S$)</label><input type="number" min="0" step="0.01" value="${g.medical}" oninput="upG(${g.id},'medical',this.value)"></div>
@@ -559,7 +614,7 @@ function buildRows(g,c){
 
 /* ── Preview ── */
 function recalc(){
-  if(!groups.length){$('prvArea').innerHTML='<div class="prv"><div class="empty-state"><div class="empty-icon">📋</div><div class="empty-title">Your table will appear here</div><div class="empty-sub">Fill in client details and add a worker group to see the live preview.</div></div></div>';return;}
+  if(!groups.length){$('prvArea').innerHTML='<div class="preview-empty"><div class="preview-empty-icon">📋</div><div class="preview-empty-title">Live preview</div><div class="preview-empty-sub">Fill in the form on the left to see your disbursement table here.</div></div>';return;}
   const hasRemarks=$('chkRemarks').checked;
   $('prvArea').innerHTML=groups.map((g,i)=>{
     const c=calcGroup(g);
@@ -595,7 +650,7 @@ function recalc(){
       }
       return`<tr class="${cls}"><td class="a">${esc(r.a)}</td><td class="b" colspan="${hasRemarks?1:2}">${r.b!==''?fmtS(r.b):''}</td>${hasRemarks?`<td class="c">${esc(r.remarks||'')}</td>`:''}</tr>`;
     }).join('');;
-    return`<div class="prv"><div class="pvtab"><span class="pv-name">Tab: ${esc(tn)}</span> <span class="pv-stat">${g.pax} pax${g.sameSalary&&g.pax>1?' · Total: '+fmtS(c.totalPerPax*g.pax):' · per pax: '+fmtS(c.totalPerPax)}</span></div><div class="xlt"><table>${trs}</table></div></div>`;
+    return`<div style="border-bottom:1px solid var(--border)"><div class="preview-tab"><span Tab: ${esc(tn)}<span class="preview-tab-stat">${g.pax} pax${g.sameSalary&&g.pax>1?' · Total: '+fmtS(c.totalPerPax*g.pax):' · per pax: '+fmtS(c.totalPerPax)}</span></div><div class="preview-body"><div class="xlt" style="padding:0"><table>${trs}</table></div></div></div>`;
   }).join('');
 }
 
@@ -1048,9 +1103,10 @@ function applyParsed(result){
 function showModal(html){
   const m = document.getElementById('pdfModal');
   document.getElementById('pdfModalBody').innerHTML = html;
-  m.style.display='flex';
-  m.onclick = e=>{ if(e.target===m) m.style.display='none'; };
+  m.classList.add('show');
+  m.onclick = e=>{ if(e.target===m) m.classList.remove('show'); };
 }
+
 
 </script>
 </body>
