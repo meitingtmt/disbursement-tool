@@ -139,7 +139,6 @@ input[type=checkbox]{width:15px;height:15px;accent-color:var(--orange);cursor:po
       </div>
     </div>
   </div>
-</div>
 
 <!-- Welcome overlay -->
 <div class="welcome-overlay" id="welcomeOverlay">
@@ -487,8 +486,9 @@ function buildRows(g,c){
   g.grossRows.forEach(r=>{T('item',r.label,r.val,false,r.remark||'',true);});
   // AWS always in Gross section
   if(c.aws>0){T('item','Annual Wage Supplement',c.aws,false,g.remarkAWS||'',true);}
-  // Monthly Remuneration subtotal (SDL/WICA base) — always shown
-  T('item','Monthly Remuneration',c.base,false,'',true);
+  // Monthly Remuneration subtotal — only show if there are multiple gross components
+  const hasMultipleGross = g.grossRows.length > 1 || c.aws > 0;
+  if(hasMultipleGross) T('item','Monthly Remuneration',c.base,false,'',true);
   T('blank','','',false,'');
   T('head','Statutory Employer Obligation Breakdown','',false,'');
   if(c.cpf>0){T('item','CPF (Employer 17%)',c.cpf,false,g.remarkCPF||'',true);}
