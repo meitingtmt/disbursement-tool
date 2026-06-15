@@ -21,8 +21,10 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);font-
 .topbar h1{font-size:15px;font-weight:700}
 .sub{font-size:11px;color:#9fb3c8}
 .acts{margin-left:auto;display:flex;gap:8px}
-.wrap{display:grid;grid-template-columns:430px 1fr;gap:18px;padding:18px 24px;max-width:1480px;margin:0 auto}
-@media(max-width:960px){.wrap{grid-template-columns:1fr}}
+.wrap{display:grid;grid-template-columns:440px 1fr;gap:20px;padding:20px 28px;max-width:1560px;margin:0 auto;align-items:start}
+.left-col{min-width:0;grid-column:1}
+.right-col{min-width:0;grid-column:2;position:sticky;top:76px}
+@media(max-width:1000px){.wrap{grid-template-columns:1fr}.left-col{grid-column:1}.right-col{grid-column:1;position:static}}
 .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:12px}
 .card h2{font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--navy);margin-bottom:10px;display:flex;align-items:center;gap:7px}
 .card h2::before{content:"";width:3px;height:13px;background:var(--orange);border-radius:2px;flex-shrink:0}
@@ -163,7 +165,7 @@ input[type=checkbox]{width:15px;height:15px;accent-color:var(--orange);cursor:po
 </div>
 
 <div class="wrap">
-<div>
+<div class="left-col">
 
 <div class="card">
   <h2>Client details</h2>
@@ -238,7 +240,7 @@ input[type=checkbox]{width:15px;height:15px;accent-color:var(--orange);cursor:po
 </div>
 </div><!-- end left -->
 
-<div id="prvArea"><div class="prv"><div class="empty-state"><div class="empty-icon">📋</div><div class="empty-title">Your table will appear here</div><div class="empty-sub">Fill in client details and add a worker group to see the live preview.</div></div></div></div>
+<div id="prvArea" class="right-col"><div class="prv"><div class="empty-state"><div class="empty-icon">📋</div><div class="empty-title">Your table will appear here</div><div class="empty-sub">Fill in client details and add a worker group to see the live preview.</div></div></div></div>
 
 </div><!-- end wrap -->
 
