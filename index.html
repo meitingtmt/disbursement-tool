@@ -8,6 +8,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 :root{
   --navy:#0e2a47;--navy2:#16395e;--orange:#f08a1d;--bg:#f4f6f9;--card:#fff;
@@ -104,6 +105,18 @@ input[type=checkbox]{width:15px;height:15px;accent-color:var(--orange);cursor:po
 .empty-icon{font-size:36px;margin-bottom:12px;opacity:.4}
 .empty-title{font-size:15px;font-weight:600;color:var(--text);margin-bottom:6px}
 .empty-sub{font-size:12.5px;color:var(--text2);max-width:280px;margin:0 auto}
+/* welcome overlay */
+.welcome-overlay{position:fixed;inset:0;background:rgba(14,42,71,.7);z-index:300;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(3px)}
+.welcome-box{background:#fff;border-radius:16px;padding:36px 40px;max-width:500px;width:90%;box-shadow:0 16px 48px rgba(14,42,71,.25);text-align:center}
+.welcome-logo{width:48px;height:48px;border-radius:12px;background:var(--orange);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:22px;color:var(--navy);margin:0 auto 16px}
+.welcome-title{font-size:20px;font-weight:800;color:var(--navy);margin-bottom:6px}
+.welcome-sub{font-size:13px;color:var(--text2);margin-bottom:28px;line-height:1.6}
+.welcome-options{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.welcome-option{border:2px solid var(--border);border-radius:12px;padding:20px 16px;cursor:pointer;transition:all .18s;text-align:left}
+.welcome-option:hover{border-color:var(--orange);background:#fffbf5;transform:translateY(-2px);box-shadow:0 4px 16px rgba(240,138,29,.15)}
+.welcome-option .wo-icon{font-size:28px;margin-bottom:10px}
+.welcome-option .wo-title{font-size:14px;font-weight:700;color:var(--navy);margin-bottom:4px}
+.welcome-option .wo-desc{font-size:11.5px;color:var(--text2);line-height:1.5}
 </style>
 </head>
 <body>
@@ -111,8 +124,42 @@ input[type=checkbox]{width:15px;height:15px;accent-color:var(--orange);cursor:po
   <div class="mark">E</div>
   <div><div style="font-size:15px;font-weight:700;letter-spacing:-.1px">Disbursement Table Generator</div><div class="sub">Elitez Group · Internal tool</div></div>
   <div class="acts">
+    <button class="btn gh" onclick="document.getElementById('pdfUpload').click()" title="Re-upload a previously generated PDF to prefill the form">↑ Load from PDF</button>
+    <input type="file" id="pdfUpload" accept=".pdf" style="display:none" onchange="loadFromPDF(this)">
     <button class="btn gh" onclick="exportPDF()">↓ PDF</button>
     <button class="btn pr" onclick="exportExcel()">↓ Download Excel</button>
+  </div>
+  <!-- PDF load result modal -->
+  <div id="pdfModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;align-items:center;justify-content:center">
+    <div style="background:#fff;border-radius:12px;padding:24px 28px;max-width:480px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,.2)">
+      <div style="font-size:15px;font-weight:700;color:#0e2a47;margin-bottom:6px">PDF loaded</div>
+      <div id="pdfModalBody" style="font-size:13px;color:#5d6b7a;line-height:1.6;margin-bottom:16px"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn sm" onclick="document.getElementById('pdfModal').style.display='none'">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Welcome overlay -->
+<div class="welcome-overlay" id="welcomeOverlay">
+  <div class="welcome-box">
+    <div class="welcome-logo">E</div>
+    <div class="welcome-title">Disbursement Table Generator</div>
+    <div class="welcome-sub">Create a new monthly disbursement table, or load and amend an existing one from a previously downloaded PDF.</div>
+    <div class="welcome-options">
+      <div class="welcome-option" onclick="startNew()">
+        <div class="wo-icon">📋</div>
+        <div class="wo-title">New table</div>
+        <div class="wo-desc">Start fresh — fill in client and worker details from scratch.</div>
+      </div>
+      <div class="welcome-option" onclick="document.getElementById('pdfUploadWelcome').click()">
+        <div class="wo-icon">✏️</div>
+        <div class="wo-title">Amend existing</div>
+        <div class="wo-desc">Upload a PDF you previously generated — we'll prefill all the fields for you.</div>
+        <input type="file" id="pdfUploadWelcome" accept=".pdf" style="display:none" onchange="loadFromPDFWelcome(this)">
+      </div>
+    </div>
   </div>
 </div>
 
@@ -161,8 +208,6 @@ input[type=checkbox]{width:15px;height:15px;accent-color:var(--orange);cursor:po
   <div id="feeFields"></div>
   <div class="fg"><label>Fee label (appears on sheet)</label><input id="feeLabel" value="Admin Fees" oninput="recalc()"></div>
   </div><!-- fees end -->
-
-</div>
 
 <div class="card">
   <h2>Payment structure</h2>
@@ -726,7 +771,285 @@ function exportPDF(){
 function fn(ext){return`Monthly_Disbursement_Table_${($('cName').value||'Client').replace(/[^a-z0-9]+/gi,'_')}_${new Date().toISOString().slice(0,10)}.${ext}`;}
 function dl(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},500);}
 
-renderFeeFields();renderPayFields();renderSvcs();addGroup();
+renderFeeFields();renderPayFields();renderSvcs();addGroup();recalc();
+
+function startNew(){
+  document.getElementById('welcomeOverlay').style.display='none';
+}
+function loadFromPDFWelcome(input){
+  document.getElementById('welcomeOverlay').style.display='none';
+  loadFromPDF(input);
+}
+
+// PDF PARSER — appended before closing 
+
+// Configure pdf.js worker
+if(typeof pdfjsLib !== 'undefined'){
+  pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+}
+
+async function loadFromPDF(input){
+  const file = input.files[0];
+  if(!file) return;
+  input.value=''; // reset so same file can be re-loaded
+
+  // show loading
+  showModal('<div style="text-align:center;padding:20px 0"><div style="font-size:24px">⏳</div><div style="margin-top:8px">Reading PDF...</div></div>');
+
+  try {
+    const ab = await file.arrayBuffer();
+    if(typeof pdfjsLib === 'undefined') throw new Error('PDF.js not loaded yet. Please try again in a moment.');
+    const pdf = await pdfjsLib.getDocument({data: ab}).promise;
+
+    // extract all text items with their positions
+    let allLines = [];
+    for(let p=1; p<=pdf.numPages; p++){
+      const page = await pdf.getPage(p);
+      const tc = await page.getTextContent();
+      // group items into lines by y-position
+      const byY = {};
+      tc.items.forEach(item => {
+        if(!item.str.trim()) return;
+        const y = Math.round(item.transform[5]);
+        if(!byY[y]) byY[y]=[];
+        byY[y].push({x: item.transform[4], str: item.str.trim()});
+      });
+      // sort lines top-to-bottom, within line left-to-right
+      Object.keys(byY).sort((a,b)=>b-a).forEach(y=>{
+        const parts = byY[y].sort((a,b)=>a.x-b.x).map(i=>i.str);
+        allLines.push(parts.join(' '));
+      });
+    }
+
+    const mapped = parsePDFLines(allLines);
+    applyParsed(mapped);
+
+  } catch(err) {
+    showModal(`<div style="color:#c93535;font-weight:600;margin-bottom:6px">Could not read PDF</div><div>${err.message}</div><div style="margin-top:8px;font-size:12px;color:#5d6b7a">Make sure you're uploading a PDF generated by this tool.</div>`);
+  }
+}
+
+function parsePDFLines(lines){
+  const out = {
+    entityName:'', clientName:'', preparedBy:'', date:'',
+    groups:[], feeMode:'none', feeFlat:0, feeFloor:295, feePct:10,
+    feeLump:0, feeLabel:'Admin Fees', payMode:'simple',
+    depMonths:1, upMonths:1, disclaimer:'', svcs:[]
+  };
+  const matched = [];
+  const unmatched = [];
+
+  const $ = str => str.toLowerCase().replace(/[^a-z0-9%.$]/g,'');
+  const money = str => {
+    const m = str.replace(/,/g,'').match(/\$?([\d]+\.?\d*)/);
+    return m ? parseFloat(m[1]) : null;
+  };
+  const pct = str => {
+    const m = str.match(/([\d.]+)\s*%/);
+    return m ? parseFloat(m[1]) : null;
+  };
+
+  // ── Header section ──
+  lines.forEach((line,i)=>{
+    const l = line.trim();
+    // entity name is typically first non-empty line or contains "Elitez" / company suffixes
+    if(i<5 && !out.entityName && l.length>3 && !l.match(/^(date|prepared|client)/i)){
+      out.entityName = l;
+    }
+    if(/^client[:\s]/i.test(l)){
+      out.clientName = l.replace(/^client[:\s]*/i,'').trim();
+      matched.push('Client name');
+    }
+    if(/^prepared by[:\s]/i.test(l)){
+      out.preparedBy = l.replace(/^prepared by[:\s]*/i,'').trim();
+      matched.push('Prepared by');
+    }
+    const dm = l.match(/date[:\s]+([\d]{1,2}\s+\w+\s+\d{4})/i);
+    if(dm) out.date = dm[1];
+  });
+
+  // ── Per-page: each page = one group ──
+  // Find "Monthly Disbursement Table" as page/group boundary
+  const pageStarts = [];
+  lines.forEach((l,i)=>{ if(/monthly disbursement table/i.test(l)) pageStarts.push(i); });
+  if(!pageStarts.length) pageStarts.push(0);
+
+  // Each group section: parse between pageStarts[n] and pageStarts[n+1]
+  pageStarts.forEach((start,gi)=>{
+    const end = pageStarts[gi+1] || lines.length;
+    const glines = lines.slice(start, end);
+    const g = {
+      type:'wp', pax:1, sameSalary:true, tabName:'',
+      grossRows:[{id:Date.now()+gi*1000, label:'Monthly Remuneration', val:0, remark:''}],
+      awsMode:'none', awsAmt:0, levy:800, medical:5.89, wica:1.5,
+      remarkLevy:'', remarkMedical:'', remarkCPF:'', remarkSDL:'', remarkWICA:'', remarkAWS:'',
+      cpfOverride:false
+    };
+
+    let inGross=false, inStat=false, inOpt=false;
+    let grossRows=[], awsVal=null;
+
+    glines.forEach((line,li)=>{
+      const l = line.trim();
+      if(!l) return;
+
+      if(/gross salary breakdown/i.test(l)){ inGross=true; inStat=false; inOpt=false; return; }
+      if(/statutory employer obligation/i.test(l)){ inGross=false; inStat=true; inOpt=false; return; }
+      if(/optional services/i.test(l)){ inGross=false; inStat=false; inOpt=true; return; }
+      if(/total salary disbursement/i.test(l)){ inGross=false; inStat=false; return; }
+
+      // detect worker type from levy or pass mention
+      if(/employment pass|ep worker/i.test(l)) g.type='ep';
+      else if(/s pass/i.test(l)) g.type='sp';
+      else if(/local worker|sc \/ pr/i.test(l)) g.type='local';
+      else if(/work permit/i.test(l)) g.type='wp';
+
+      // pax — "3 pax" pattern
+      const paxM = l.match(/(\d+)\s*pax/i);
+      if(paxM){ g.pax=parseInt(paxM[1]); g.sameSalary=true; matched.push('Pax count'); }
+
+      if(inGross){
+        // look for label + dollar value pairs
+        const vm = money(l);
+        if(/monthly remuneration/i.test(l) && vm!==null){
+          grossRows.push({id:Date.now()+li, label:'Monthly Remuneration', val:vm, remark:''});
+          matched.push('Monthly Remuneration');
+        } else if(/annual wage supplement|aws/i.test(l) && vm!==null){
+          awsVal = vm;
+          matched.push('AWS');
+        } else if(/allowance/i.test(l) && vm!==null){
+          grossRows.push({id:Date.now()+li+1, label:l.split('$')[0].trim()||'Allowance', val:vm, remark:''});
+          matched.push('Allowance');
+        } else if(/commission/i.test(l) && vm!==null){
+          grossRows.push({id:Date.now()+li+2, label:'Commission', val:vm, remark:''});
+          matched.push('Commission');
+        }
+      }
+
+      if(inStat){
+        const vm = money(l);
+        if(/^levy/i.test(l) && vm!==null){ g.levy=vm; matched.push('Levy'); }
+        if(/medical insurance/i.test(l) && vm!==null){ g.medical=vm; matched.push('Medical insurance'); }
+        if(/work injury compensation/i.test(l)){
+          const pp = pct(l); if(pp) g.wica=pp;
+          matched.push('WICA %');
+        }
+        // detect CPF → local worker
+        if(/cpf/i.test(l) && vm!==null){ g.type='local'; matched.push('CPF (local worker)'); }
+        // waived remarks
+        if(/waived/i.test(l)){
+          if(inStat && /medical/i.test(glines[li-1]||'')) g.remarkMedical='Waived off';
+          if(inStat && /levy/i.test(glines[li-1]||'')) g.remarkLevy='Waived off';
+        }
+      }
+
+      if(inOpt){
+        const vm = money(l);
+        if(vm!==null){
+          const name=l.split('$')[0].replace(/\d[\d,.]*/,'').trim()||l;
+          // only add if not already in default svcs
+          const exists=out.svcs.find(s=>s.name.toLowerCase()===name.toLowerCase());
+          if(!exists && name.length>2) out.svcs.push({id:Date.now()+li*10, name, rate:vm, remark:''});
+        }
+      }
+
+      // fees parsing (outside sections)
+      if(!inGross && !inStat && !inOpt){
+        const vm = money(l);
+        if(/admin fees|service fees|management fee/i.test(l) && vm!==null){
+          if(/12 months|lump/i.test(l)){ out.feeMode='lump'; out.feeLump=vm; matched.push('Lump fee'); }
+          else if(/or.*%|whichever/i.test(l)){ out.feeMode='max'; const pp=pct(l); if(pp)out.feePct=pp; matched.push('Max fee'); }
+          else { out.feeMode='flat'; out.feeFlat=vm; matched.push('Flat fee'); }
+          out.feeLabel = l.split('\n')[0].split('$')[0].trim().replace(/\(.*$/,'').trim() || 'Admin Fees';
+        }
+        // staged payment detection
+        if(/1st payment|2nd payment/i.test(l)) out.payMode='staged';
+        if(/deposit.*month/i.test(l)){ const dm2=l.match(/(\d+)\s*month/i); if(dm2)out.depMonths=parseInt(dm2[1]); }
+      }
+    });
+
+    // apply gross rows
+    if(grossRows.length>0) g.grossRows = grossRows.map((r,ri)=>({...r, id:Date.now()+gi*100+ri}));
+    if(awsVal!==null){ g.awsMode='custom'; g.awsAmt=awsVal; }
+    if(g.type==='local') g.levy=0;
+    if(g.type==='ep') g.levy=0;
+
+    out.groups.push(g);
+  });
+
+  // disclaimer — last italic-style line
+  const discLine = lines.slice().reverse().find(l=>/declared salary|subject to change|reserves the right/i.test(l));
+  if(discLine){ out.disclaimer=discLine; matched.push('Disclaimer'); }
+
+  // optional services — use parsed or fall back to defaults
+  if(!out.svcs.length){
+    out.svcs = [{id:1,name:'Work Pass Application',rate:600,remark:''},{id:2,name:'Work Pass Cancellation',rate:95,remark:''},{id:3,name:'Medical Check Up',rate:50,remark:''}];
+  }
+
+  return {data:out, matched, total: matched.length};
+}
+
+function applyParsed(result){
+  const d = result.data;
+  const pct = Math.round(result.matched.length/Math.max(result.total,1)*100);
+
+  // apply client details
+  if(d.entityName && d.entityName.length>2) $('entityName').value = d.entityName;
+  if(d.clientName) $('cName').value = d.clientName;
+  if(d.preparedBy) $('cBy').value = d.preparedBy;
+  if(d.disclaimer) $('disclaimer').value = d.disclaimer;
+
+  // apply groups
+  if(d.groups.length>0){
+    groups = d.groups.map((g,i)=>({...g, id:++gid}));
+  }
+
+  // apply fee settings
+  $('selFee').value = d.feeMode;
+  renderFeeFields();
+  if(d.feeMode==='flat' && $('fFlat')) $('fFlat').value = d.feeFlat||0;
+  if(d.feeMode==='max'){ if($('fFloor'))$('fFloor').value=d.feeFloor; if($('fPct'))$('fPct').value=d.feePct; }
+  if(d.feeMode==='lump' && $('fLump')) $('fLump').value = d.feeLump||0;
+  if($('feeLabel')) $('feeLabel').value = d.feeLabel||'Admin Fees';
+
+  // apply payment mode
+  $('selPay').value = d.payMode;
+  renderPayFields();
+  if(d.payMode==='staged'){
+    if($('pDep')) $('pDep').value = d.depMonths||1;
+    if($('pUp')) $('pUp').value = d.upMonths||1;
+  }
+
+  // apply optional services
+  svcs = d.svcs; sid = svcs.reduce((m,s)=>Math.max(m,s.id),sid)+1;
+
+  renderGroups(); renderSvcs(); recalc();
+
+  // build result summary
+  const mList = result.matched.slice(0,12).map(m=>`<li>${m}</li>`).join('');
+  const extra = result.matched.length>12 ? `<li>...and ${result.matched.length-12} more</li>` : '';
+  const warn = pct < 70 ? `<div style="margin-top:10px;padding:8px 10px;background:#fef3e2;border-radius:6px;font-size:12px;color:#a05800">⚠️ Only ${pct}% of fields could be matched. Please review all values carefully.</div>` : '';
+
+  showModal(`
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+      <div style="width:36px;height:36px;border-radius:50%;background:${pct>=70?'#e6f4ec':'#fef3e2'};display:flex;align-items:center;justify-content:center;font-size:18px">${pct>=70?'✅':'⚠️'}</div>
+      <div><div style="font-weight:700;color:#1c2733">${pct}% prefilled</div><div style="font-size:11.5px;color:#5d6b7a">${result.matched.length} fields matched from PDF</div></div>
+    </div>
+    <div style="font-size:12px;color:#5d6b7a;margin-bottom:6px">Successfully mapped:</div>
+    <ul style="font-size:12px;color:#1c2733;padding-left:16px;line-height:1.8">${mList}${extra}</ul>
+    <div style="margin-top:10px;padding:8px 10px;background:#f0f4f8;border-radius:6px;font-size:12px;color:#5d6b7a">
+      💡 Please review all values — especially salary figures and fee amounts — before downloading.
+    </div>${warn}
+  `);
+}
+
+function showModal(html){
+  const m = document.getElementById('pdfModal');
+  document.getElementById('pdfModalBody').innerHTML = html;
+  m.style.display='flex';
+  m.onclick = e=>{ if(e.target===m) m.style.display='none'; };
+}
+
 </script>
 </body>
 </html>
