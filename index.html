@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Elitez — Monthly Disbursement Table Generator</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<style>
+:root{
+  --navy:#0e2a47;--navy2:#16395e;--orange:#f08a1d;--bg:#f4f6f9;--card:#fff;
+  --border:#dfe5ec;--text:#1c2733;--text2:#5d6b7a;--red:#d64545;--radius:10px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);font-size:13px;line-height:1.5}
+.topbar{background:var(--navy);color:#fff;padding:12px 24px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:50;box-shadow:0 2px 8px rgba(14,42,71,.25)}
+.mark{width:32px;height:32px;border-radius:8px;background:var(--orange);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;color:var(--navy)}
+.topbar h1{font-size:15px;font-weight:700}
+.sub{font-size:11px;color:#9fb3c8}
+.acts{margin-left:auto;display:flex;gap:8px}
+.wrap{display:grid;grid-template-columns:430px 1fr;gap:18px;padding:18px 24px;max-width:1480px;margin:0 auto}
+@media(max-width:960px){.wrap{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:12px}
+.card h2{font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--navy);margin-bottom:10px;display:flex;align-items:center;gap:7px}
+.card h2::before{content:"";width:3px;height:13px;background:var(--orange);border-radius:2px;flex-shrink:0}
+.fg{margin-bottom:9px}
+.fg label{display:block;font-size:11px;font-weight:600;color:var(--text2);margin-bottom:3px}
+input,select{width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:5px;font:inherit;font-size:12.5px;background:#fff;color:var(--text)}
+input:focus,select:focus{outline:2px solid rgba(240,138,29,.35);border-color:var(--orange)}
+input[type=number]{font-family:'DM Mono',monospace}
+input[type=checkbox]{width:15px;height:15px;accent-color:var(--orange);cursor:pointer}
+.r2{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.r3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px}
+.btn{padding:7px 13px;border-radius:6px;border:1px solid var(--border);background:#fff;font:inherit;font-size:12px;font-weight:600;cursor:pointer;color:var(--text)}
+.btn:hover{border-color:var(--navy);color:var(--navy)}
+.btn.pr{background:var(--orange);border-color:var(--orange);color:#fff}
+.btn.pr:hover{background:#d97a12}
+.btn.gh{background:transparent;border-color:#3b5a7d;color:#cfe0f2}
+.btn.gh:hover{border-color:var(--orange);color:var(--orange)}
+.btn.sm{padding:3px 8px;font-size:11px}
+.btn.dn{color:var(--red)}
+.grp{border:1px solid var(--border);border-radius:8px;padding:11px;margin-bottom:9px;background:#fafbfd}
+.gh2{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px;gap:7px}
+.tag{font-size:10.5px;font-weight:700;color:var(--navy);background:#fdf0df;border:1px solid #f5d6ad;padding:2px 7px;border-radius:20px;white-space:nowrap}
+.auto{font-family:'DM Mono',monospace;font-size:12px;background:#eef2f7;border:1px dashed var(--border);border-radius:5px;padding:6px 8px;color:var(--text2)}
+.svcrow{display:grid;grid-template-columns:1fr 90px 90px 24px;gap:5px;align-items:center;margin-bottom:5px}
+.xbtn{border:none;background:none;color:var(--text2);cursor:pointer;font-size:15px;line-height:1;padding:0 2px}
+.xbtn:hover{color:var(--red)}
+.hint{font-size:10.5px;color:var(--text2);margin-top:4px}
+.chk{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:500;color:var(--text2);cursor:pointer;margin-bottom:8px}
+/* Preview area */
+.prv{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:14px}
+.pvtab{background:var(--navy2);color:#fff;font-size:11px;font-weight:700;letter-spacing:.4px;padding:6px 14px;display:flex;justify-content:space-between}
+.pvtab span{color:#ffd9a8;font-family:'DM Mono',monospace;font-weight:400}
+/* Excel-mimic preview table */
+.xlt{padding:20px 28px;overflow-x:auto}
+.xlt table{border-collapse:collapse;font-family:Calibri,'Inter',sans-serif;font-size:12.5px}
+.xlt td{padding:2px 6px;white-space:pre-line;vertical-align:top;min-width:60px}
+.xlt td.a{width:380px;max-width:380px}
+.xlt td.b{width:110px;text-align:right;font-family:'DM Mono',monospace}
+.xlt td.c{width:120px;font-size:11.5px;color:#5d6b7a}
+.xlt .bordered td{border:1px solid #bbb}
+.xlt .title td{font-weight:700;font-size:13.5px;border:none!important}
+.xlt .sechead td{font-weight:700}
+.xlt .bold td.a,.xlt .bold td.b{font-weight:700}
+.empty{padding:50px;text-align:center;color:var(--text2)}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div class="mark">E</div>
+  <div><h1>Monthly Disbursement Table Generator</h1><div class="sub">Internal tool · Elitez Group of Companies</div></div>
+  <div class="acts">
+    <button class="btn gh" onclick="exportPDF()">Download PDF</button>
+    <button class="btn pr" onclick="exportExcel()">Download Excel</button>
+  </div>
+</div>
+
+<div class="wrap">
+<div>
+
+<div class="card">
+  <h2>Client & tab name</h2>
+  <div class="r2">
+    <div class="fg"><label>Client name (used in tab / filename)</label><input id="cName" placeholder="e.g. Danone" oninput="recalc()"></div>
+    <div class="fg"><label>Prepared by</label><input id="cBy" placeholder="Your name" oninput="recalc()"></div>
+  </div>
+  <label class="chk"><input type="checkbox" id="chkBGST" checked onchange="recalc()"> Show "Rate (Before GST)" as column header</label>
+  <label class="chk"><input type="checkbox" id="chkRemarks" onchange="recalc()"> Include Remarks column (e.g. "Waived off")</label>
+</div>
+
+<div class="card">
+  <h2>Worker groups <span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:11px;color:var(--text2)">— one tab per group</span></h2>
+  <div id="gList"></div>
+  <button class="btn" onclick="addGroup()">＋ Add worker group</button>
+  <div class="hint">Each group becomes a separate Excel tab. Add multiple for clients with mixed worker types.</div>
+</div>
+
+<div class="card">
+  <h2>Admin / service fees</h2>
+  <div class="fg"><label>Fee type</label>
+    <select id="selFee" onchange="renderFeeFields();recalc()">
+      <option value="none">No admin fee</option>
+      <option value="flat" selected>Flat monthly fee</option>
+      <option value="max">Higher of $X or Y% of disbursement</option>
+      <option value="pct">% of disbursement (no floor)</option>
+      <option value="lump">One-time lump sum (12 months)</option>
+      <option value="tiered">Tiered (base fee + % on extra salary)</option>
+    </select>
+  </div>
+  <div id="feeFields"></div>
+  <div class="fg"><label>Fee label (appears on sheet)</label><input id="feeLabel" value="Admin Fees" oninput="recalc()"></div>
+</div>
+
+<div class="card">
+  <h2>Payment structure</h2>
+  <div class="fg"><label>Billing style</label>
+    <select id="selPay" onchange="renderPayFields();recalc()">
+      <option value="simple" selected>Simple — Total Charges Per Month</option>
+      <option value="staged">Staged — 1st Payment / 2nd Payment / Subsequent</option>
+      <option value="deposit">Deposit shown separately, then monthly</option>
+    </select>
+  </div>
+  <div id="payFields"></div>
+</div>
+
+<div class="card">
+  <h2>Optional services</h2>
+  <div class="svcrow" style="font-size:10px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.4px">
+    <span>Service name</span><span>Rate (S$)</span><span>Remarks (opt.)</span><span></span>
+  </div>
+  <div id="svcList"></div>
+  <button class="btn sm" onclick="addSvc()">＋ Add service</button>
+</div>
+
+</div><!-- end left -->
+
+<div id="prvArea"><div class="prv"><div class="empty">Add a worker group to preview.</div></div></div>
+
+</div><!-- end wrap -->
+
+<script>
+const TYPES={
+  local:{label:'Local Worker',short:'LOC',levy:0,cpf:true},
+  wp:{label:'Work Permit',short:'WP',levy:800,cpf:false},
+  sp:{label:'S Pass',short:'SP',levy:650,cpf:false},
+  ep:{label:'EP Worker',short:'EP',levy:0,cpf:false},
+};
+const ACCT='_("$"* #,##0.00_);_("$"* \\(#,##0.00\\);_("$"* "-"??_);_(@_)';
+let groups=[],svcs=[
+  {id:1,name:'Work Pass Application',rate:600,remark:''},
+  {id:2,name:'Work Pass Cancellation',rate:95,remark:''},
+  {id:3,name:'Medical Check Up',rate:50,remark:''},
+],gid=0,sid=3;
+
+const $=id=>document.getElementById(id);
+const num=v=>{const n=parseFloat(v);return isNaN(n)?0:n;};
+const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+const fmtS=n=>'$'+(Math.round(n*100)/100).toLocaleString('en-SG',{minimumFractionDigits:2,maximumFractionDigits:2});
+
+/* ── Groups ── */
+function addGroup(){
+  groups.push({id:++gid,type:'wp',tabName:'',pax:1,
+    grossRows:[{id:1,label:'Monthly Remuneration',val:0,formula:''}],
+    awsInGross:false,awsMode:'none',awsAmt:0,commission:0,
+    levy:800,medical:5.89,wica:1.5,cpfOverride:false});
+  renderGroups();recalc();
+}
+function removeGroup(id){groups=groups.filter(g=>g.id!==id);renderGroups();recalc();}
+function upG(id,field,val){
+  const g=groups.find(g=>g.id===id);if(!g)return;
+  if(field==='type'){g.type=val;g.levy=TYPES[val].levy;renderGroups();}
+  else if(field==='awsMode'){g.awsMode=val;renderGroups();}
+  else if(field in g)g[field]=typeof g[field]==='number'?num(val):val;
+  recalc();
+}
+function upGrossRow(gid,rid,field,val){
+  const g=groups.find(g=>g.id===gid);if(!g)return;
+  const r=g.grossRows.find(r=>r.id===rid);if(!r)return;
+  r[field]=field==='val'?num(val):val;
+  recalc();
+}
+function addGrossRow(gid){
+  const g=groups.find(g=>g.id===gid);if(!g)return;
+  g.grossRows.push({id:Date.now(),label:'',val:0,formula:''});
+  renderGroups();recalc();
+}
+function removeGrossRow(gid,rid){
+  const g=groups.find(g=>g.id===gid);if(!g)return;
+  if(g.grossRows.length<=1)return;
+  g.grossRows=g.grossRows.filter(r=>r.id!==rid);
+  renderGroups();recalc();
+}
+
+function renderGroups(){
+  $('gList').innerHTML=groups.map((g,i)=>`
+  <div class="grp">
+    <div class="gh2">
+      <span class="tag">Tab ${i+1} — ${TYPES[g.type].label}</span>
+      <button class="btn sm dn" onclick="removeGroup(${g.id})">Remove</button>
+    </div>
+    <div class="r2">
+      <div class="fg"><label>Worker type</label>
+        <select onchange="upG(${g.id},'type',this.value)">
+          ${Object.entries(TYPES).map(([k,t])=>`<option value="${k}"${g.type===k?' selected':''}>${t.label}</option>`).join('')}
+        </select></div>
+      <div class="fg"><label>Tab name (leave blank = auto)</label>
+        <input value="${esc(g.tabName)}" placeholder="e.g. Tien Hsia (WP)" oninput="upG(${g.id},'tabName',this.value)"></div>
+    </div>
+    <div class="fg"><label>No. of pax</label><input type="number" min="1" value="${g.pax}" style="width:80px" oninput="upG(${g.id},'pax',this.value)"></div>
+    <div class="fg"><label>Gross salary components</label>
+      ${g.grossRows.map((r,ri)=>`
+      <div style="display:grid;grid-template-columns:1fr 90px 20px;gap:5px;margin-bottom:4px">
+        <input value="${esc(r.label)}" placeholder="Label (e.g. Monthly Remuneration)" oninput="upGrossRow(${g.id},${r.id},'label',this.value)">
+        <input type="number" min="0" step="50" value="${r.val}" oninput="upGrossRow(${g.id},${r.id},'val',this.value)">
+        ${g.grossRows.length>1?`<button class="xbtn" onclick="removeGrossRow(${g.id},${r.id})">×</button>`:'<span></span>'}
+      </div>`).join('')}
+      <button class="btn sm" onclick="addGrossRow(${g.id})" style="margin-top:2px">＋ row</button>
+    </div>
+    <div class="r2">
+      <div class="fg"><label>AWS / bonus accrual</label>
+        <select onchange="upG(${g.id},'awsMode',this.value)">
+          <option value="none"${g.awsMode==='none'?' selected':''}>None</option>
+          <option value="auto"${g.awsMode==='auto'?' selected':''}>Auto (1st remun ÷ 12)</option>
+          <option value="custom"${g.awsMode==='custom'?' selected':''}>Custom amount / mth</option>
+        </select></div>
+      <div class="fg"><label>${g.awsMode==='custom'?'AWS amount (S$)':'Auto preview'}</label>
+        ${g.awsMode==='custom'
+          ?`<input type="number" min="0" value="${g.awsAmt}" oninput="upG(${g.id},'awsAmt',this.value)">`
+          :`<div class="auto">${g.awsMode==='auto'?fmtS((g.grossRows[0]?.val||0)/12):'—'}</div>`}
+      </div>
+    </div>
+    <label class="chk" style="margin-bottom:7px"><input type="checkbox" ${g.awsInGross?'checked':''} onchange="upG(${g.id},'awsInGross',this.checked);recalc()"> AWS row goes in Gross section (vs Statutory section)</label>
+    <div class="r3">
+      <div class="fg"><label>Levy / mth (S$)</label><input type="number" min="0" value="${g.levy}" oninput="upG(${g.id},'levy',this.value)"></div>
+      <div class="fg"><label>Medical ins. (S$)</label><input type="number" min="0" step="0.01" value="${g.medical}" oninput="upG(${g.id},'medical',this.value)"></div>
+      <div class="fg"><label>WICA (%)</label><input type="number" min="0" step="0.1" value="${g.wica}" oninput="upG(${g.id},'wica',this.value)"></div>
+    </div>
+    <div class="hint">CPF 17% employer: ${TYPES[g.type].cpf?'auto-included (local worker)':'not applicable for this pass type'}</div>
+  </div>`).join('');
+}
+
+/* ── Fee fields ── */
+function renderFeeFields(){
+  const m=$('selFee').value;
+  $('feeFields').innerHTML=
+    m==='flat'?`<div class="fg"><label>Monthly fee per worker (S$)</label><input type="number" id="fFlat" min="0" value="650" oninput="recalc()"></div>`:
+    m==='max'?`<div class="r2"><div class="fg"><label>Minimum floor (S$)</label><input type="number" id="fFloor" min="0" value="295" oninput="recalc()"></div><div class="fg"><label>% of disbursement</label><input type="number" id="fPct" min="0" step="0.5" value="10" oninput="recalc()"></div></div>`:
+    m==='pct'?`<div class="fg"><label>% of disbursement</label><input type="number" id="fPct2" min="0" step="0.5" value="10" oninput="recalc()"></div>`:
+    m==='lump'?`<div class="r2"><div class="fg"><label>Total lump sum (S$)</label><input type="number" id="fLump" min="0" value="12000" oninput="recalc()"></div><div class="fg"><label>Label suffix (e.g. "12 months")</label><input id="fLumpSfx" value="12 months" oninput="recalc()"></div></div>`:
+    m==='tiered'?`<div class="r2"><div class="fg"><label>Base fee for first S$ of salary</label><input type="number" id="fBase" min="0" value="1600" oninput="recalc()"></div><div class="fg"><label>% on salary above threshold</label><input type="number" id="fTierPct" min="0" step="1" value="30" oninput="recalc()"></div></div><div class="r2"><div class="fg"><label>Base covers salary up to (S$)</label><input type="number" id="fTierThresh" min="0" value="7000" oninput="recalc()"></div><div class="fg"><label>Additional salary (S$) for tier 2</label><input type="number" id="fTierExtra" min="0" value="0" oninput="recalc()"></div></div>`:
+    '';
+}
+
+/* ── Payment fields ── */
+function renderPayFields(){
+  const m=$('selPay').value;
+  $('payFields').innerHTML=m==='staged'?`
+    <div class="r2">
+      <div class="fg"><label>Deposit (months)</label>
+        <select id="pDep" onchange="recalc()">
+          <option value="0">No deposit</option><option value="1" selected>1 month</option>
+          <option value="2">2 months</option><option value="3">3 months</option>
+        </select></div>
+      <div class="fg"><label>Months billed upfront (2nd pmt)</label>
+        <select id="pUp" onchange="recalc()">
+          <option value="1" selected>1 month</option><option value="2">2 months</option>
+        </select></div>
+    </div>
+    <label class="chk" style="margin-bottom:5px"><input type="checkbox" id="chk1stIncludesAdminFee" onchange="recalc()"> 1st payment bundles admin fee + disbursement (no separate 2nd)</label>
+    <div class="fg"><label>Invoice note (shown in brackets)</label><input id="pNote" value="Invoice on the 1st of every month, 14 days credit term" oninput="recalc()"></div>`
+    :m==='deposit'?`<div class="fg"><label>Deposit (months)</label>
+        <select id="pDep2" onchange="recalc()">
+          <option value="1" selected>1 month</option><option value="2">2 months</option>
+        </select></div>`:'';
+}
+
+/* ── Services ── */
+function addSvc(){svcs.push({id:++sid,name:'',rate:0,remark:''});renderSvcs();recalc();}
+function removeSvc(id){svcs=svcs.filter(s=>s.id!==id);renderSvcs();recalc();}
+function upSvc(id,f,v){const s=svcs.find(s=>s.id===id);if(s){s[f]=f==='rate'?num(v):v;}recalc();}
+function renderSvcs(){
+  $('svcList').innerHTML=svcs.map(s=>`
+    <div class="svcrow">
+      <input value="${esc(s.name)}" placeholder="Service name" oninput="upSvc(${s.id},'name',this.value)">
+      <input type="number" min="0" value="${s.rate}" oninput="upSvc(${s.id},'rate',this.value)">
+      <input value="${esc(s.remark)}" placeholder="Remark" oninput="upSvc(${s.id},'remark',this.value)">
+      <button class="xbtn" onclick="removeSvc(${s.id})">×</button>
+    </div>`).join('');
+}
+
+/* ── Core calculation ── */
+function calcGroup(g){
+  const grossTotal=g.grossRows.reduce((a,r)=>a+r.val,0);
+  const aws=g.awsMode==='auto'?(g.grossRows[0]?.val||0)/12:g.awsMode==='custom'?g.awsAmt:0;
+  const base=grossTotal+aws; // base for SDL/WICA/CPF
+  const cpf=TYPES[g.type].cpf?base*0.17:0;
+  const sdl=base*0.0025;
+  const wica=base*(g.wica/100);
+  const stat=cpf+g.levy+g.medical+sdl+wica;
+  const disbPerPax=base+stat;
+  // fees
+  const fm=$('selFee').value;
+  const fLabel=$('feeLabel').value||'Admin Fees';
+  let feePerPax=0,feeIsLump=false,feeLumpTotal=0,feeFormula='',feeLabel2='';
+  if(fm==='flat'){feePerPax=num($('fFlat')?.value);feeLabel2=fLabel;}
+  else if(fm==='max'){const fl=num($('fFloor')?.value),fp=num($('fPct')?.value);feePerPax=Math.max(fl,disbPerPax*fp/100);feeLabel2=`${fLabel}\n($${fl} or ${fp}% of total salary disbursement whichever is higher)`;feeFormula=`MAX(${fl},{DISB}*${fp}%)`;}
+  else if(fm==='pct'){const fp=num($('fPct2')?.value);feePerPax=disbPerPax*fp/100;feeLabel2=fLabel;feeFormula=`{DISB}*${fp}%`;}
+  else if(fm==='lump'){feeLumpTotal=num($('fLump')?.value);feePerPax=feeLumpTotal/12;feeIsLump=true;const sfx=$('fLumpSfx')?.value||'12 months';feeLabel2=`${fLabel} (${sfx})`;feeLumpTotal=feeLumpTotal;}
+  else if(fm==='tiered'){const fb=num($('fBase')?.value),tp=num($('fTierPct')?.value),te=num($('fTierExtra')?.value);feePerPax=fb+(te*tp/100);feeLabel2=fLabel;}
+  const totalPerPax=disbPerPax+feePerPax;
+  return {g,grossTotal,aws,base,cpf,sdl,wica,stat,disbPerPax,feePerPax,feeIsLump,feeLumpTotal,feeFormula,feeLabel:feeLabel2,totalPerPax};
+}
+
+/* ── Build row list for a single group ── */
+function buildRows(g,c){
+  const rows=[];
+  const hasRemarks=$('chkRemarks').checked;
+  const bGST=$('chkBGST').checked;
+  const pm=$('selPay').value;
+  const fm=$('selFee').value;
+  // helpers
+  const T=(kind,a,b,bold,remarks)=>rows.push({kind,a,b,bold:!!bold,remarks:remarks||''});
+  const THIN=true;
+  T('title','Monthly Disbursement Table','',false,'');
+  T('blank','','',false,'');
+  T('head','Gross Salary Breakdown',bGST?'Rate \n(Before GST)':'Rate',false,'');
+  // gross rows
+  const grossRowNums=[];
+  g.grossRows.forEach(r=>{T('item',r.label,r.val,false,'');grossRowNums.push(rows.length);});
+  // AWS in gross section
+  if(c.aws>0 && g.awsInGross){T('item','Annual Wage Supplement',c.aws,false,'');grossRowNums.push(rows.length);}
+  // if multiple gross rows, show subtotal
+  let grossSumRow=null;
+  if(grossRowNums.length>1){T('item','Monthly Remuneration',c.base,false,'');grossSumRow=rows.length;}
+  T('blank','','',false,'');
+  T('head','Statutory Employer Obligation Breakdown','',false,'');
+  // AWS in statutory section (Media style)
+  if(c.aws>0 && !g.awsInGross){T('item','Annual Wage Supplement',c.aws,false,'');}
+  if(c.cpf>0){T('item','CPF (Employer 17%)',c.cpf,false,'');}
+  T('item','Levy',c.g.levy,false,'');
+  T('item','Medical Insurance',c.g.medical,false,'');
+  T('item',`Skills Development Levy (0.25% of monthly remuneration)`,c.sdl,false,'');
+  T('item',`Work Injury Compensation (${c.g.wica}% of monthly remuneration)`,c.wica,false,'');
+  T('item','Total Statutory Obligation',c.stat,false,'');
+  T('blank','','',false,'');
+  T('item','Total salary disbursement per month',c.disbPerPax,false,'');
+  let disbRow=rows.length;
+  // fees
+  if(fm==='lump'){
+    T('item',c.feeLabel,c.feeLumpTotal,true,'');
+    T('item','Monthly Admin Fees (Per month after GST)',c.feeLumpTotal/12,true,'');
+  } else if(fm!=='none'){
+    T('item',c.feeLabel,c.feePerPax,true,'');
+  }
+  let feeRow=rows.length;
+  // deposit (deposit style)
+  if(pm==='deposit'){
+    const dep=num($('pDep2')?.value)||1;
+    T('item',`Deposit: ${dep} month salary disbursement`,c.disbPerPax*dep,true,'');
+  }
+  // payment lines
+  const wp=svcs.find(s=>/work pass application/i.test(s.name));
+  const wpVal=wp?wp.rate:0;
+  const note=$('pNote')?.value||'';
+  if(pm==='simple'){
+    T('item','Total Charges Per Month',c.totalPerPax,false,'');
+  } else if(pm==='staged'){
+    const dep=num($('pDep')?.value),up=num($('pUp')?.value)||1;
+    const bundle=$('chk1stIncludesAdminFee')?.checked;
+    T('blank','','',false,'');
+    if(bundle){
+      const first=wpVal+c.disbPerPax+c.feePerPax;
+      T('item','1st Payment: Work Pass Application Fees + 1 month admin fee + 1 month salary disbursement',first,true,'');
+      T('item',`Subsequent Payment: Salary Disbursement${fm!=='none'?' + Monthly Admin Fees':''}`+(note?`\n(${note})`:''),c.totalPerPax,true,'');
+    } else {
+      T('item','1st Payment: Work Pass Application Fees',wpVal,true,'');
+      const parts=[];
+      if(fm==='lump')parts.push(`${c.feeLabel.split('\n')[0]} for 12 months`);
+      else if(fm!=='none'&&up>1)parts.push(`Admin Fee for ${up} months`);
+      else if(fm!=='none')parts.push('1 month admin fee');
+      if(dep>0)parts.push(`Deposit`);
+      parts.push(up>1?`${up} Months Salary Disbursement`:'1st Month Salary Disbursement');
+      const second=(fm==='lump'?c.feeLumpTotal:c.feePerPax*up)+dep*c.disbPerPax+up*c.disbPerPax;
+      T('item',`2nd Payment: ${parts.join(' + ')}`,second,true,'');
+      T('item',`Subsequent Payment: Salary Disbursement${fm!=='none'&&fm!=='lump'?' + Monthly Admin Fees':''}`+(note?`\n(${note})`:''),fm==='lump'?c.disbPerPax:c.totalPerPax,true,'');
+    }
+  } else if(pm==='deposit'){
+    T('item',`Monthly Payment: Salary Disbursement${fm!=='none'?' + Monthly Admin Fees':''}`,c.totalPerPax,true,'');
+  }
+  // optional services
+  const hasSvcs=svcs.some(s=>s.name.trim());
+  if(hasSvcs){
+    T('blank','','',false,'');
+    T('head','Optional Services','',false,'');
+    svcs.filter(s=>s.name.trim()).forEach(s=>T('item',s.name,s.rate,false,s.remark));
+  }
+  return rows;
+}
+
+/* ── Preview ── */
+function recalc(){
+  if(!groups.length){$('prvArea').innerHTML='<div class="prv"><div class="empty">Add a worker group to preview.</div></div>';return;}
+  const hasRemarks=$('chkRemarks').checked;
+  $('prvArea').innerHTML=groups.map((g,i)=>{
+    const c=calcGroup(g);
+    const rows=buildRows(g,c);
+    const tn=tabLabel(g,i);
+    const trs=rows.map(r=>{
+      if(r.kind==='blank')return`<tr><td class="a">&nbsp;</td><td class="b"></td>${hasRemarks?'<td class="c"></td>':''}</tr>`;
+      if(r.kind==='title')return`<tr class="title"><td class="a" colspan="${hasRemarks?3:2}">${esc(r.a)}</td></tr>`;
+      if(r.kind==='head')return`<tr class="bordered sechead"><td class="a">${esc(r.a)}</td><td class="b">${esc(r.b||'')}</td>${hasRemarks?'<td class="c"></td>':''}</tr>`;
+      const cls='bordered'+(r.bold?' bold':'');
+      return`<tr class="${cls}"><td class="a">${esc(r.a)}</td><td class="b">${r.b!==''?fmtS(r.b):''}</td>${hasRemarks?`<td class="c">${esc(r.remarks||'')}</td>`:''}</tr>`;
+    }).join('');
+    return`<div class="prv"><div class="pvtab">Tab: ${esc(tn)} <span>${g.pax} pax · Total/pax: ${fmtS(c.totalPerPax)}</span></div><div class="xlt"><table>${trs}</table></div></div>`;
+  }).join('');
+}
+
+function tabLabel(g,i){
+  if(g.tabName.trim())return g.tabName.trim();
+  const cn=$('cName').value.trim();
+  // if multiple groups, distinguish by pass type
+  const multi=groups.length>1;
+  if(cn) return multi?`${cn} (${TYPES[g.type].short})`:cn;
+  const same=groups.filter(x=>x.type===g.type);
+  const suffix=same.length>1?' '+(same.indexOf(g)+1):'';
+  return `${TYPES[g.type].short} Worker${suffix}`;
+}
+
+/* ── Excel export ── */
+async function exportExcel(){
+  if(!groups.length){alert('Add at least one worker group first.');return;}
+  const wb=new ExcelJS.Workbook();
+  const thin={style:'thin',color:{argb:'FF000000'}};
+  const border={top:thin,bottom:thin,left:thin,right:thin};
+  const hasRemarks=$('chkRemarks').checked;
+  const usedNames=new Set();
+
+  groups.forEach((g,i)=>{
+    const c=calcGroup(g);
+    const rows=buildRows(g,c);
+    let name=tabLabel(g,i).slice(0,31);
+    let n=1;while(usedNames.has(name)){name=tabLabel(g,i).slice(0,28)+' '+(++n);}
+    usedNames.add(name);
+    const ws=wb.addWorksheet(name,{views:[{showGridLines:false}]});
+    ws.getColumn(1).width=55;
+    ws.getColumn(2).width=13;
+    if(hasRemarks)ws.getColumn(3).width=22;
+
+    rows.forEach((r,idx)=>{
+      const rn=idx+1;
+      if(r.kind==='blank'){ws.getRow(rn).height=8;return;}
+      const ca=ws.getCell(rn,1),cb=ws.getCell(rn,2);
+      const baseFont={name:'Calibri',size:11};
+      ca.font={...baseFont,bold:r.kind==='title'||r.kind==='head'||r.bold};
+      cb.font={...baseFont};
+      if(r.kind==='title'){ca.value=r.a;return;}
+      if(r.kind==='head'){
+        ca.value=r.a;ca.border=border;
+        if(r.b){cb.value=r.b;cb.border=border;cb.font={...baseFont,bold:true};cb.alignment={wrapText:true,horizontal:'center',vertical:'top'};}
+        if(hasRemarks){const cc=ws.getCell(rn,3);cc.border=border;cc.font=baseFont;}
+        return;
+      }
+      // item row
+      ca.value=r.a;ca.border=border;
+      if(r.a.includes('\n')||r.a.length>60)ca.alignment={wrapText:true,vertical:'top'};
+      if(r.bold)ca.font={...baseFont,bold:true};
+      if(r.b!==''){
+        cb.value=r.b;cb.border=border;cb.numFmt=ACCT;
+        if(r.bold)cb.font={...baseFont,bold:true};
+      }else{cb.border=border;}
+      if(hasRemarks){
+        const cc=ws.getCell(rn,3);
+        cc.value=r.remarks||'';cc.border=border;cc.font={...baseFont,size:10,color:{argb:'FF5D6B7A'}};
+      }
+    });
+  });
+
+  const buf=await wb.xlsx.writeBuffer();
+  dl(new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),fn('xlsx'));
+}
+
+/* ── PDF export ── */
+function exportPDF(){
+  if(!groups.length){alert('Add at least one worker group first.');return;}
+  const {jsPDF}=window.jspdf;
+  const doc=new jsPDF({unit:'mm',format:'a4'});
+  const NAVY=[14,42,71],GREY=[246,248,251];
+  const hasRemarks=$('chkRemarks').checked;
+
+  groups.forEach((g,i)=>{
+    if(i>0)doc.addPage();
+    const c=calcGroup(g);
+    const rows=buildRows(g,c);
+    const tn=tabLabel(g,i);
+    doc.setFont('helvetica','bold');doc.setFontSize(13);doc.setTextColor(...NAVY);
+    doc.text('ELITEZ GROUP',14,15);
+    doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(93,107,122);
+    doc.text('Staffing & HR Solutions · Singapore',14,19.5);
+    const by=$('cBy').value;if(by)doc.text(`Prepared by: ${by}`,196,15,{align:'right'});
+    doc.text(`Date: ${new Date().toLocaleDateString('en-SG',{day:'2-digit',month:'short',year:'numeric'})}`,196,19.5,{align:'right'});
+    doc.setDrawColor(...NAVY);doc.setLineWidth(0.5);doc.line(14,22,196,22);
+
+    const body=[];
+    rows.forEach(r=>{
+      if(r.kind==='blank'){body.push([{content:'',colSpan:hasRemarks?3:2,_k:'blank'}]);return;}
+      if(r.kind==='title'){body.push([{content:tn,colSpan:hasRemarks?3:2,_k:'title'}]);return;}
+      if(r.kind==='head'){
+        if(hasRemarks)body.push([{content:r.a,_k:'head'},{content:r.b||'',_k:'head',_n:1},{content:'',_k:'head'}]);
+        else body.push([{content:r.a,_k:'head'},{content:r.b||'',_k:'head',_n:1}]);
+        return;
+      }
+      if(hasRemarks)body.push([{content:r.a,_k:r.bold?'bold':'item'},{content:r.b!==''?fmtS(r.b):'',_k:r.bold?'bold':'item',_n:1},{content:r.remarks||'',_k:'rem'}]);
+      else body.push([{content:r.a,_k:r.bold?'bold':'item'},{content:r.b!==''?fmtS(r.b):'',_k:r.bold?'bold':'item',_n:1}]);
+    });
+
+    const cols=hasRemarks?{0:{cellWidth:110},1:{cellWidth:45,halign:'right'},2:{cellWidth:27}}:{0:{cellWidth:137},1:{cellWidth:45,halign:'right'}};
+    doc.autoTable({
+      startY:26,margin:{left:14,right:14},body,theme:'plain',
+      styles:{font:'helvetica',fontSize:9,cellPadding:{top:1,bottom:1,left:2,right:2},textColor:[28,39,51]},
+      columnStyles:cols,
+      didParseCell:(d)=>{
+        const raw=d.cell.raw;if(!raw)return;
+        if(raw._n)d.cell.styles.halign='right';
+        if(raw._k==='title'){d.cell.styles.fontStyle='bold';d.cell.styles.fontSize=11;d.cell.styles.textColor=NAVY;}
+        if(raw._k==='head'){d.cell.styles.fontStyle='bold';d.cell.styles.textColor=NAVY;d.cell.styles.lineWidth={bottom:0.3};d.cell.styles.lineColor=NAVY;}
+        if(raw._k==='bold'){d.cell.styles.fontStyle='bold';}
+        if(raw._k==='blank'){d.cell.styles.cellPadding=0.5;}
+        if(raw._k==='rem'){d.cell.styles.textColor=[93,107,122];d.cell.styles.fontSize=8;}
+      }
+    });
+  });
+  doc.save(fn('pdf'));
+}
+
+function fn(ext){return`Monthly_Disbursement_Table_${($('cName').value||'Client').replace(/[^a-z0-9]+/gi,'_')}_${new Date().toISOString().slice(0,10)}.${ext}`;}
+function dl(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},500);}
+
+renderFeeFields();renderPayFields();renderSvcs();addGroup();
+</script>
+</body>
+</html>
