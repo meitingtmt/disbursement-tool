@@ -1488,68 +1488,44 @@ function parsePDFLines(lines){
   // PDF header is: "EntityName\nClient: XXX\nDate: DD Mon YYYY"
   // or: "EntityName Date: DD Mon YYYY" on same line (pdf.js merges them)
   let headerDone=false;
-  for(let i=0;i<Math.min(15,lines.length);i++){
+  // Header is on first 3 lines: entity name, date, worker type
+  for(let i=0;i<Math.min(6,lines.length);i++){
     const l=lines[i].trim();
     if(!l) continue;
-    // Split "EntityName Date: DD Mon YYYY" pattern
-    const dateSplit=l.match(/^(.+?)\s+(Date:\s*\d{1,2}\s+\w+\s+\d{4})$/);
-    if(dateSplit&&!headerDone){
-      out.entityName=dateSplit[1].trim();
-      out.date=dateSplit[2].replace('Date:','').trim();
-      matched.push('Entity name','Date');
-      headerDone=true; continue;
+    if(/^date[:\s]/i.test(l)&&!out.date){
+      out.date=l.replace(/^date[:\s]*/i,'').trim();
+      matched.push('Date'); continue;
     }
     if(/^client[:\s]/i.test(l)){out.clientName=l.replace(/^client[:\s]*/i,'').trim();matched.push('Client name');continue;}
     if(/^prepared by[:\s]/i.test(l)){out.preparedBy=l.replace(/^prepared by[:\s]*/i,'').trim();matched.push('Prepared by');continue;}
-    if(/^date[:\s]/i.test(l)&&!out.date){out.date=l.replace(/^date[:\s]*/i,'').trim();matched.push('Date');continue;}
-    // Entity name = first meaningful non-keyword line
-    if(!out.entityName&&!headerDone&&l.length>2&&!/^(gross|statutory|optional|monthly disbursement|total|work permit|s pass|ep worker|local worker|wp)/i.test(l)){
-      // Check it doesn't look like a date line
-      if(!/\d{1,2}\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i.test(l)){
-        out.entityName=l; matched.push('Entity name'); headerDone=true;
-      }
+    // Entity name = first short line with no $ or keywords
+    if(!out.entityName&&l.length>2&&l.length<80&&!l.includes('$')&&
+       !/^(gross|statutory|optional|monthly disbursement|total|work permit|s pass|ep worker|local worker|wp|date|client|prepared)/i.test(l)){
+      out.entityName=l; matched.push('Entity name'); continue;
     }
-    if(headerDone&&out.entityName&&out.date) break;
   }
 
   // ── Step 2: Find page boundaries = each "Monthly Disbursement Table" ──
   const pageStarts=[];
-  // Each page in the PDF starts with one of:
-  // 1. "Monthly Disbursement Table" (title row - from tab label)
-  // 2. A worker type line right after the entity/date header
-  // Strategy: find lines that look like a worker type heading (standalone, short, matches known types)
-  // OR "Monthly Disbursement Table" text
   const workerTypePattern=/^(work permit|wp worker|loc worker|s pass|sp worker|ep worker|employment pass|local worker|wpprc worker|wp.?prc|work permit.?prc)/i;
-  const entityPattern = out.entityName ? new RegExp('^'+out.entityName.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'i') : null;
 
+  // Structure per page: entity name → Date: line → worker type line → content
+  // Detect boundaries by finding lines followed by a "Date:" line (entity name lines only)
+  // Summary page has no "Date:" after it, so it's automatically excluded
   lines.forEach((l,i)=>{
     const lt=l.trim();
-    if(!lt) return;
-    // Method 1: explicit title row
-    if(/monthly disbursement table/i.test(lt)){pageStarts.push(i);return;}
-    // Method 2: worker type heading (short line matching known pass types)
-    if(lt.length<40 && workerTypePattern.test(lt) && i>0){
-      // Make sure it's a standalone label line, not mid-table content
-      const prev=lines[i-1]?.trim()||'';
-      const isAfterHeader=entityPattern?entityPattern.test(prev):/date:/i.test(prev)||prev.length<50;
-      if(isAfterHeader) pageStarts.push(i);
-      return;
+    if(!lt||i>=lines.length-1) return;
+    const next=lines[i+1]?.trim()||'';
+    // Primary: short line with no $ or :, followed by Date: = entity name = page start
+    if(lt.length>2&&lt.length<80&&!lt.includes('$')&&!lt.includes(':')){
+      if(/^date:/i.test(next)){pageStarts.push(i);return;}
     }
-    // Method 3: repeated entity name line = new page starting
-    if(entityPattern && entityPattern.test(lt) && i>5 && pageStarts.length>0){
-      // Next non-empty line after this should be a worker type
-      const nextMeaningful=lines.slice(i+1,i+4).find(x=>x.trim().length>2);
-      if(nextMeaningful && (workerTypePattern.test(nextMeaningful.trim())||/disbursement table/i.test(nextMeaningful))){
-        pageStarts.push(i);
-      }
-    }
+    // Fallback: "Monthly Disbursement Table" for backwards compatibility
+    if(/^monthly disbursement table$/i.test(lt)){pageStarts.push(i);}
   });
 
-  // Deduplicate and sort
-  const uniqueStarts=[...new Set(pageStarts)].sort((a,b)=>a-b);
-  pageStarts.length=0; uniqueStarts.forEach(s=>pageStarts.push(s));
   if(!pageStarts.length)pageStarts.push(0);
-  console.log('PDF pages detected:', pageStarts.length, 'at lines:', pageStarts);
+  console.log('PDF pages detected:', pageStarts.length, 'starting at lines:', pageStarts);
 
   // ── Step 3: Parse each group page ──
   pageStarts.forEach((start,gi)=>{
