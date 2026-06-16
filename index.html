@@ -241,17 +241,6 @@ textarea{resize:vertical;line-height:1.5}
     </div>
 
     <div class="card">
-      <div class="card-title">Worker groups</div>
-      <div class="guide-box">
-        <span style="font-weight:700;color:var(--navy)">Quick guide</span><br>
-        <b>Same salary for all workers?</b> Use 1 group, set the pax count, tick "same package".<br>
-        <b>Different salaries?</b> Add one group per worker — each becomes its own Excel tab.
-      </div>
-      <div id="gList"></div>
-      <button class="btn add sm" onclick="addGroup()">＋ Add worker group</button>
-    </div>
-
-    <div class="card">
       <div class="card-title">Admin &amp; service fees</div>
       <label class="chk-row" style="margin-bottom:10px">
         <input type="checkbox" id="chkSameFee" checked onchange="renderFeeFields();renderPayRemarks();recalc()">
@@ -272,6 +261,17 @@ textarea{resize:vertical;line-height:1.5}
         <div id="feeFields"></div>
         <div class="fg"><label>Fee label <span class="opt">(appears on sheet)</span></label><input id="feeLabel" value="Admin Fees" oninput="recalc()"></div>
       </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Worker groups</div>
+      <div class="guide-box">
+        <span style="font-weight:700;color:var(--navy)">Quick guide</span><br>
+        <b>Same salary for all workers?</b> Use 1 group, set the pax count, tick "same package".<br>
+        <b>Different salaries?</b> Add one group per worker — each becomes its own Excel tab.
+      </div>
+      <div id="gList"></div>
+      <button class="btn add sm" onclick="addGroup()">＋ Add worker group</button>
     </div>
 
     <div class="card">
@@ -321,7 +321,7 @@ textarea{resize:vertical;line-height:1.5}
 const TYPES={
   local:{label:'Local Worker',short:'LOC',levy:0,  cpf:true,  feeMode:'max',  feeFlat:255, feeFloor:255, feePct:10},
   wp:   {label:'Work Permit', short:'WP', levy:800, cpf:false, feeMode:'flat', feeFlat:1000,feeFloor:0,   feePct:0},
-  wpprc:{label:'WP (PRC)',    short:'WP(PRC)',levy:800,cpf:false,feeMode:'flat',feeFlat:1500,feeFloor:0,  feePct:0},
+  wpprc:{label:'Work Permit (PRC)', short:'WP(PRC)',levy:800,cpf:false,feeMode:'flat',feeFlat:1500,feeFloor:0,  feePct:0},
   sp:   {label:'S Pass',      short:'SP', levy:650, cpf:false, feeMode:'flat', feeFlat:1800,feeFloor:0,   feePct:0},
   ep:   {label:'EP Worker',   short:'EP', levy:0,   cpf:false, feeMode:'flat', feeFlat:1800,feeFloor:0,   feePct:0},
 };
@@ -361,7 +361,14 @@ function upG(id,field,val){
     renderGroups();
   }
   else if(field==='awsMode'){g.awsMode=val;renderGroups();}
-  else if(field in g)g[field]=typeof g[field]==='number'?num(val):val;
+  else if(field in g){
+    // handle type correctly
+    if(typeof g[field]==='boolean') g[field]=val===true||val==='true';
+    else if(typeof g[field]==='number') g[field]=num(val);
+    else g[field]=val;
+    // re-render groups if the field changes visible UI sections
+    if(['hourly','feeOverride','secBond','sameSalary'].includes(field)) renderGroups();
+  }
   recalc();
 }
 function upGrossRow(gid,rid,field,val){
@@ -480,7 +487,7 @@ function renderGroups(){
     <div class="hint">CPF 17% employer: ${TYPES[g.type].cpf?'auto-included (local worker)':'not applicable for this pass type'}</div>
 
     ${g.type==='wpprc'?`
-    <div class="mini-sec" style="margin-top:14px">Security bond (WP PRC)</div>
+    <div class="mini-sec" style="margin-top:14px">Security bond (Work Permit PRC)</div>
     <label class="chk-row" style="margin-bottom:8px">
       <input type="checkbox" ${g.secBond?'checked':''} onchange="upG(${g.id},'secBond',this.checked);recalc()">
       <div><div class="chk-lbl">Collect security bond</div>
@@ -495,12 +502,17 @@ function renderGroups(){
       </div>
     </div>`:''}
     `:''}
+    ${document.getElementById('chkSameFee')?.checked===false?`
     <div class="mini-sec" style="margin-top:14px">Service fee for this group</div>
+    <div style="background:#f0f4f8;border:1px solid #dde4ed;border-radius:6px;padding:8px 10px;margin-bottom:8px;font-size:11.5px">
+      <span style="color:var(--text2)">Auto-detected rate for ${TYPES[g.type].label}:</span>
+      <span style="font-weight:700;color:var(--navy);margin-left:4px">${TYPES[g.type].feeMode==='max'?`$${TYPES[g.type].feeFloor} or ${TYPES[g.type].feePct}% whichever higher`:`$${TYPES[g.type].feeFlat} flat`}</span>
+    </div>
     <label class="chk-row" style="margin-bottom:8px">
       <input type="checkbox" ${g.feeOverride?'checked':''} onchange="upG(${g.id},'feeOverride',this.checked);recalc()">
-      <div><div class="chk-lbl">Override global fee for this group</div>
-      <div class="chk-sub">Default: ${TYPES[g.type].feeMode==='max'?`$${TYPES[g.type].feeFloor} or ${TYPES[g.type].feePct}% whichever higher`:`$${TYPES[g.type].feeFlat} flat`} for ${TYPES[g.type].label}. Tick to customise.</div></div>
-    </label>
+      <div><div class="chk-lbl">Customise fee for this group</div>
+      <div class="chk-sub">Override the auto-detected rate above.</div></div>
+    </label>`:''}
     ${g.feeOverride?`
     <div class="r2">
       <div class="fg"><label>Fee type</label>
@@ -658,7 +670,15 @@ function calcGroup(g){
   const stat=cpf+g.levy+g.medical+sdl+wica;
   const disbPerPax=base+stat;
   // fees — use per-group override if set, else global
-  const useGrpFee = g.feeOverride;
+  const sameFee = document.getElementById('chkSameFee')?.checked !== false;
+  // Use group fee if: same fee is OFF (each group has own rate) OR group has explicit override
+  const useGrpFee = !sameFee || g.feeOverride;
+  // When same fee is OFF and no explicit override, auto-use type defaults
+  if(!sameFee && !g.feeOverride){
+    const td = TYPES[g.type];
+    g.grpFeeMode = td.feeMode; g.grpFeeFlat = td.feeFlat;
+    g.grpFeeFloor = td.feeFloor; g.grpFeePct = td.feePct;
+  }
   const gfm = useGrpFee ? g.grpFeeMode : $('selFee').value;
   const gfLabel = useGrpFee ? (g.grpFeeLabel||'Admin Fees') : ($('feeLabel').value||'Admin Fees');
   const fm=gfm; const fLabel=gfLabel;
@@ -1082,6 +1102,83 @@ function exportPDF(){
       }
     });
   });
+  // ── Summary page (only when 2+ groups) ──
+  if(groups.length > 1){
+    doc.addPage();
+    const allCalcs = groups.map(g=>({g, c:calcGroup(g)}));
+    const paxFmt = (g,c) => (g.sameSalary&&g.pax>1)?g.pax:1;
+    const grandMonthly = allCalcs.reduce((sum,{g,c})=> sum + c.totalPerPax * paxFmt(g,c), 0);
+    const grandDisb    = allCalcs.reduce((sum,{g,c})=> sum + c.disbPerPax  * paxFmt(g,c), 0);
+    const grandFee     = allCalcs.reduce((sum,{g,c})=> sum + c.feePerPax   * paxFmt(g,c), 0);
+    const totalPax     = allCalcs.reduce((sum,{g,c})=> sum + paxFmt(g,c), 0);
+    const depM2        = num($('pDep')?.value||$('pDep2')?.value||0);
+    const depIncF      = document.getElementById('depIncludeFee')?.checked!==false||document.getElementById('depIncludeFeeSt')?.checked!==false;
+    const grandDeposit = depM2>0?allCalcs.reduce((sum,{g,c})=>{
+      const px=paxFmt(g,c);
+      const base=depIncF?(c.disbPerPax+c.feePerPax):c.disbPerPax;
+      return sum+base*depM2*px;
+    },0):0;
+
+    // header
+    const pdfEntity=$('entityName')?.value||'Elitez Group of Companies';
+    const pdfClient=$('cName')?.value||'';
+    doc.setFont('helvetica','bold');doc.setFontSize(13);doc.setTextColor(...NAVY);
+    doc.text(pdfEntity,14,15);
+    doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(93,107,122);
+    if(pdfClient)doc.text('Client: '+pdfClient,14,19.5);
+    doc.setDrawColor(...NAVY);doc.setLineWidth(0.5);doc.line(14,23,196,23);
+
+    // summary table body
+    const sBody = [];
+    // header row
+    sBody.push([
+      {content:'Worker Group',_k:'head'},
+      {content:'Per Pax (S$)',_k:'head',_n:1},
+      {content:'Pax',_k:'head',_n:1},
+      {content:'Monthly (S$)',_k:'head',_n:1}
+    ]);
+    // group rows
+    allCalcs.forEach(({g,c},i)=>{
+      const px=paxFmt(g,c);
+      const grpLabel=g.tabName.trim()||(TYPES[g.type].label+' ('+TYPES[g.type].short+')');
+      sBody.push([
+        {content:grpLabel+' — '+px+' pax',_k:'item'},
+        {content:fmtS(c.totalPerPax),_k:'item',_n:1},
+        {content:String(px),_k:'item',_n:1},
+        {content:fmtS(c.totalPerPax*px),_k:'item',_n:1}
+      ]);
+    });
+    // subtotals
+    sBody.push([{content:'',colSpan:4,_k:'blank'}]);
+    sBody.push([{content:'Total salary disbursement',_k:'bold'},{content:'',_k:'bold'},{content:'',_k:'bold'},{content:fmtS(grandDisb),_k:'bold',_n:1}]);
+    sBody.push([{content:'Total admin fees',_k:'bold'},{content:'',_k:'bold'},{content:'',_k:'bold'},{content:fmtS(grandFee),_k:'bold',_n:1}]);
+    if(grandDeposit>0)
+      sBody.push([{content:'Total deposit to collect (one-time)',_k:'bold'},{content:'',_k:'bold'},{content:'',_k:'bold'},{content:fmtS(grandDeposit),_k:'bold',_n:1}]);
+    sBody.push([{content:'',colSpan:4,_k:'blank'}]);
+    sBody.push([{content:'Grand Total — Monthly to Collect',_k:'grand'},{content:'',_k:'grand'},{content:String(totalPax)+' pax',_k:'grand',_n:1},{content:fmtS(grandMonthly),_k:'grand',_n:1}]);
+
+    doc.autoTable({
+      startY:28, margin:{left:14,right:14},
+      body: sBody, theme:'plain',
+      styles:{font:'helvetica',fontSize:9.5,cellPadding:{top:2,bottom:2,left:3,right:3},textColor:[28,39,51]},
+      columnStyles:{0:{cellWidth:100},1:{cellWidth:30,halign:'right'},2:{cellWidth:20,halign:'right'},3:{cellWidth:32,halign:'right'}},
+      didParseCell:(d)=>{
+        const raw=d.cell.raw; if(!raw) return;
+        if(raw._n) d.cell.styles.halign='right';
+        if(raw._k==='head'){d.cell.styles.fontStyle='bold';d.cell.styles.textColor=NAVY;d.cell.styles.lineWidth={bottom:0.4};d.cell.styles.lineColor=NAVY;}
+        if(raw._k==='bold'){d.cell.styles.fontStyle='bold';}
+        if(raw._k==='blank'){d.cell.styles.cellPadding=1;}
+        if(raw._k==='grand'){d.cell.styles.fontStyle='bold';d.cell.styles.fontSize=10.5;d.cell.styles.textColor=NAVY;d.cell.styles.fillColor=[240,245,252];}
+        if(raw._k==='item'){d.cell.styles.lineWidth={bottom:0.15};d.cell.styles.lineColor=[220,225,232];}
+      }
+    });
+
+    // add "Summary" label below table
+    const finalY = doc.lastAutoTable.finalY + 6;
+    doc.setFont('helvetica','italic');doc.setFontSize(7.5);doc.setTextColor(93,107,122);
+    doc.text('This summary reflects the combined monthly disbursement across all worker groups for '+pdfClient+'.',14,finalY);
+  }
+
   doc.save(fn('pdf'));
   }catch(err){
     console.error('PDF export error:',err);
@@ -1239,7 +1336,7 @@ function parsePDFLines(lines){
       if(/total salary disbursement per month/i.test(l)){ inGross=false; inStat=false; inPayment=true; return; }
 
       // worker type — detected from tab header or pass type mentions
-      if(/wp.*prc|prc.*wp/i.test(l))          { g.type='wpprc'; g.levy=TYPES.wpprc.levy; }
+      if(/work permit.*prc|prc.*work permit|wpprc/i.test(l))          { g.type='wpprc'; g.levy=TYPES.wpprc.levy; }
       else if(/employment pass|ep worker/i.test(l)) { g.type='ep';    g.levy=0; }
       else if(/s pass/i.test(l))                   { g.type='sp';    g.levy=TYPES.sp.levy; }
       else if(/local worker|sc.*pr/i.test(l))      { g.type='local'; g.levy=0; }
