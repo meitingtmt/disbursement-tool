@@ -254,7 +254,7 @@ textarea{resize:vertical;line-height:1.5}
     <div class="card">
       <div class="card-title">Admin &amp; service fees</div>
       <div class="fg"><label>Fee type</label>
-        <select id="selFee" onchange="renderFeeFields();recalc()">
+        <select id="selFee" onchange="renderFeeFields();renderPayRemarks();recalc()">
           <option value="none">No admin fee</option>
           <option value="flat" selected>Flat monthly fee</option>
           <option value="max">Higher of $X or Y% of disbursement</option>
@@ -270,13 +270,14 @@ textarea{resize:vertical;line-height:1.5}
     <div class="card">
       <div class="card-title">Payment structure</div>
       <div class="fg"><label>Billing style</label>
-        <select id="selPay" onchange="renderPayFields();recalc()">
+        <select id="selPay" onchange="renderPayFields();renderPayRemarks();recalc()">
           <option value="simple" selected>Simple — Total Charges Per Month</option>
           <option value="staged">Staged — 1st / 2nd / Subsequent payments</option>
           <option value="deposit">Deposit shown separately, then monthly</option>
         </select>
       </div>
       <div id="payFields"></div>
+      <div id="payRemarksFields" style="margin-top:10px"></div>
     </div>
 
     <div class="card">
@@ -311,10 +312,11 @@ textarea{resize:vertical;line-height:1.5}
 <script>
 
 const TYPES={
-  local:{label:'Local Worker',short:'LOC',levy:0,cpf:true},
-  wp:{label:'Work Permit',short:'WP',levy:800,cpf:false},
-  sp:{label:'S Pass',short:'SP',levy:650,cpf:false},
-  ep:{label:'EP Worker',short:'EP',levy:0,cpf:false},
+  local:{label:'Local Worker',short:'LOC',levy:0,  cpf:true,  feeMode:'max',  feeFlat:255, feeFloor:255, feePct:10},
+  wp:   {label:'Work Permit', short:'WP', levy:800, cpf:false, feeMode:'flat', feeFlat:1000,feeFloor:0,   feePct:0},
+  wpprc:{label:'WP (PRC)',    short:'WP(PRC)',levy:800,cpf:false,feeMode:'flat',feeFlat:1500,feeFloor:0,  feePct:0},
+  sp:   {label:'S Pass',      short:'SP', levy:650, cpf:false, feeMode:'flat', feeFlat:1800,feeFloor:0,   feePct:0},
+  ep:   {label:'EP Worker',   short:'EP', levy:0,   cpf:false, feeMode:'flat', feeFlat:1800,feeFloor:0,   feePct:0},
 };
 const ACCT='_("$"* #,##0.00_);_("$"* \\(#,##0.00\\);_("$"* "-"??_);_(@_)';
 let groups=[],svcs=[
@@ -330,17 +332,27 @@ const fmtS=n=>'$'+(Math.round(n*100)/100).toLocaleString('en-SG',{minimumFractio
 
 /* ── Groups ── */
 function addGroup(){
+  const dt=TYPES['wp'];
   groups.push({id:++gid,type:'wp',tabName:'',pax:1,
     grossRows:[{id:1,label:'Monthly Remuneration',val:0,formula:'',remark:''}],
     awsInGross:false,awsMode:'none',awsAmt:0,commission:0,
-    levy:800,medical:5.89,wica:1.5,cpfOverride:false,sameSalary:true,
+    levy:dt.levy,medical:5.89,wica:1.5,cpfOverride:false,sameSalary:true,awsLabel:'Annual Wage Supplement',
+    feeOverride:false,grpFeeMode:dt.feeMode,grpFeeFlat:dt.feeFlat,grpFeeFloor:dt.feeFloor,grpFeePct:dt.feePct,grpFeeLabel:'Admin Fees',
+    hourly:false,hourlyRate:0,hoursPerMonth:0,
     remarkLevy:'',remarkMedical:'',remarkCPF:'',remarkSDL:'',remarkWICA:'',remarkAWS:''});
   renderGroups();recalc();
 }
 function removeGroup(id){groups=groups.filter(g=>g.id!==id);renderGroups();recalc();}
 function upG(id,field,val){
   const g=groups.find(g=>g.id===id);if(!g)return;
-  if(field==='type'){g.type=val;g.levy=TYPES[val].levy;renderGroups();}
+  if(field==='type'){
+    g.type=val;g.levy=TYPES[val].levy;
+    // auto-apply fee defaults for this pass type
+    const td=TYPES[val];
+    g.grpFeeMode=td.feeMode; g.grpFeeFlat=td.feeFlat;
+    g.grpFeeFloor=td.feeFloor; g.grpFeePct=td.feePct;
+    renderGroups();
+  }
   else if(field==='awsMode'){g.awsMode=val;renderGroups();}
   else if(field in g)g[field]=typeof g[field]==='number'?num(val):val;
   recalc();
@@ -394,7 +406,26 @@ function renderGroups(){
       </div>
       <div class="hint" style="margin-top:3px">${g.sameSalary||g.pax<=1?'Table will show rate × pax = total for each line.':'Different salaries? Uncheck and add a separate group per worker.'}</div>
     </div>
+    <label class="chk-row" style="margin-bottom:8px">
+      <input type="checkbox" ${g.hourly?'checked':''} onchange="upG(${g.id},'hourly',this.checked);recalc()">
+      <div><div class="chk-lbl">Hourly rated employee</div>
+      <div class="chk-sub">Monthly remuneration will be calculated from hourly rate × hours per month.</div></div>
+    </label>
     <div class="mini-sec">Gross salary</div>
+    ${g.hourly?`
+    <div class="r2">
+      <div class="fg"><label>Hourly rate (S$)</label>
+        <input type="number" min="0" step="0.5" value="${g.hourlyRate}" oninput="upG(${g.id},'hourlyRate',this.value)">
+      </div>
+      <div class="fg"><label>Hours per month</label>
+        <input type="number" min="0" step="1" value="${g.hoursPerMonth}" oninput="upG(${g.id},'hoursPerMonth',this.value)">
+      </div>
+    </div>
+    <div class="fg"><label>Estimated monthly remuneration</label>
+      <div class="auto-val">${fmtS(g.hourlyRate*(g.hoursPerMonth||0))}</div>
+    </div>
+    <div class="hint">S$ ${g.hourlyRate.toFixed(2)} × ${g.hoursPerMonth} hrs = ${fmtS(g.hourlyRate*g.hoursPerMonth)} / month</div>
+    `:`
     <div class="fg"><label>Components</label>
       ${g.grossRows.map((r,ri)=>{const rmk=document.getElementById('chkRemarks')?.checked;return`
       <div style="display:grid;grid-template-columns:1fr 90px ${rmk?'90px ':''} 20px;gap:5px;margin-bottom:4px">
@@ -404,21 +435,24 @@ function renderGroups(){
         ${g.grossRows.length>1?`<button class="xbtn" onclick="removeGrossRow(${g.id},${r.id})">×</button>`:'<span></span>'}
       </div>`}).join('')}
       <button class="btn sm" onclick="addGrossRow(${g.id})" style="margin-top:2px">＋ row</button>
-    </div>
+    </div>`}
     <div class="mini-sec">Bonus / AWS accrual</div>
     <div class="r2">
-      <div class="fg"><label>AWS mode</label>
+      <div class="fg"><label>AWS / Bonus accrual</label>
         <select onchange="upG(${g.id},'awsMode',this.value)">
           <option value="none"${g.awsMode==='none'?' selected':''}>None</option>
-          <option value="auto"${g.awsMode==='auto'?' selected':''}>Auto (1st remun ÷ 12)</option>
+          <option value="auto"${g.awsMode==='auto'?' selected':''}>Auto — 1 month basic ÷ 12</option>
           <option value="custom"${g.awsMode==='custom'?' selected':''}>Custom amount / mth</option>
         </select></div>
-      <div class="fg"><label>${g.awsMode==='custom'?'AWS amount (S$)':'Auto preview'}</label>
+      <div class="fg"><label>${g.awsMode==='custom'?'Monthly accrual (S$)':'Monthly accrual (auto)'}</label>
         ${g.awsMode==='custom'
           ?`<input type="number" min="0" value="${g.awsAmt}" oninput="upG(${g.id},'awsAmt',this.value)">`
           :`<div class="auto-val">${g.awsMode==='auto'?fmtS((g.grossRows[0]?.val||0)/12):'—'}</div>`}
       </div>
     </div>
+    ${g.awsMode!=='none'?`<div class="fg"><label>Bonus / AWS label <span class="opt">(shown on table)</span></label>
+      <input value="${esc(g.awsLabel||'Annual Wage Supplement')}" placeholder="e.g. Performance Bonus, 13th Month" oninput="upG(${g.id},'awsLabel',this.value)">
+    </div>`:''}
 
     <div class="mini-sec">Statutory obligations</div>
     <div class="r3">
@@ -427,6 +461,33 @@ function renderGroups(){
       <div class="fg"><label>WICA (%)</label><input type="number" min="0" step="0.1" value="${g.wica}" oninput="upG(${g.id},'wica',this.value)"></div>
     </div>
     <div class="hint">CPF 17% employer: ${TYPES[g.type].cpf?'auto-included (local worker)':'not applicable for this pass type'}</div>
+
+    <div class="mini-sec" style="margin-top:14px">Service fee for this group</div>
+    <label class="chk-row" style="margin-bottom:8px">
+      <input type="checkbox" ${g.feeOverride?'checked':''} onchange="upG(${g.id},'feeOverride',this.checked);recalc()">
+      <div><div class="chk-lbl">Override global fee for this group</div>
+      <div class="chk-sub">Default: ${TYPES[g.type].feeMode==='max'?`$${TYPES[g.type].feeFloor} or ${TYPES[g.type].feePct}% whichever higher`:`$${TYPES[g.type].feeFlat} flat`} for ${TYPES[g.type].label}. Tick to customise.</div></div>
+    </label>
+    ${g.feeOverride?`
+    <div class="r2">
+      <div class="fg"><label>Fee type</label>
+        <select onchange="upG(${g.id},'grpFeeMode',this.value)">
+          <option value="flat"${g.grpFeeMode==='flat'?' selected':''}>Flat monthly</option>
+          <option value="max"${g.grpFeeMode==='max'?' selected':''}>$X or Y% whichever higher</option>
+          <option value="pct"${g.grpFeeMode==='pct'?' selected':''}>% of disbursement</option>
+          <option value="none"${g.grpFeeMode==='none'?' selected':''}>No fee for this group</option>
+        </select>
+      </div>
+      <div class="fg"><label>${g.grpFeeMode==='max'?'Min floor (S$)':'Fee amount (S$)'}</label>
+        <input type="number" min="0" value="${g.grpFeeMode==='max'?g.grpFeeFloor:g.grpFeeFlat}" oninput="upG(${g.id},g.grpFeeMode==='max'?'grpFeeFloor':'grpFeeFlat',this.value)">
+      </div>
+    </div>
+    ${g.grpFeeMode==='max'?`<div class="fg"><label>% of disbursement</label>
+      <input type="number" min="0" step="1" value="${g.grpFeePct}" oninput="upG(${g.id},'grpFeePct',this.value)">
+    </div>`:''}
+    <div class="fg"><label>Fee label</label>
+      <input value="${esc(g.grpFeeLabel||'Admin Fees')}" oninput="upG(${g.id},'grpFeeLabel',this.value)">
+    </div>`:''}
     ${document.getElementById('chkRemarks')?.checked?`
     <div class="fg" style="margin-top:6px"><label>Remarks for statutory lines</label>
       <div style="display:grid;grid-template-columns:100px 1fr;gap:3px 8px;align-items:center;font-size:11.5px;margin-top:3px">
@@ -454,6 +515,34 @@ function renderFeeFields(){
 }
 
 /* ── Payment fields ── */
+function renderPayRemarks(){
+  const m=$('selPay').value;
+  const fm=$('selFee').value;
+  const el=document.getElementById('payRemarksFields');
+  if(!el) return;
+  const row=(id,label)=>`<div class="fg" style="margin-bottom:7px">
+    <label style="font-size:10.5px;color:var(--text2);font-weight:600">${label} <span style="font-weight:400;opacity:.7">(remark)</span></label>
+    <input value="${payRemarks[id]||''}" placeholder="e.g. Waived off, Subject to change" oninput="payRemarks['${id}']=this.value;recalc()">
+  </div>`;
+  let fields='';
+  if(fm!=='none') fields+=row('fee','Admin fees');
+  if(m==='deposit'||m==='staged') fields+=row('deposit','Deposit');
+  if(m==='simple') fields+=row('total','Total charges per month');
+  if(m==='deposit') fields+=row('monthly','Monthly payment');
+  if(m==='staged'){
+    fields+=row('first','1st payment');
+    fields+=row('second','2nd payment');
+    fields+=row('subsequent','Subsequent payment');
+  }
+  if(fields){
+    el.innerHTML=`<div style="padding-top:8px;border-top:1px solid var(--border);margin-top:4px">
+      <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text3);margin-bottom:8px">Payment line remarks</div>
+      ${fields}</div>`;
+  } else {
+    el.innerHTML='';
+  }
+}
+
 function renderPayFields(){
   const m=$('selPay').value;
   $('payFields').innerHTML=m==='staged'?`
@@ -468,12 +557,18 @@ function renderPayFields(){
           <option value="1" selected>1 month</option><option value="2">2 months</option>
         </select></div>
     </div>
-    <label class="chk" style="margin-bottom:5px"><input type="checkbox" id="chk1stIncludesAdminFee" onchange="recalc()"> 1st payment bundles admin fee + disbursement (no separate 2nd)</label>
+    <label class="chk-row" style="margin-bottom:5px"><input type="checkbox" id="depIncludeFeeSt" checked onchange="recalc()"><div><div class="chk-lbl">Include admin fees in deposit</div><div class="chk-sub">Uncheck to base deposit on salary disbursement only.</div></div></label>
+    <label class="chk-row" style="margin-bottom:5px"><input type="checkbox" id="chk1stIncludesAdminFee" onchange="recalc()"><div><div class="chk-lbl">1st payment bundles admin fee + disbursement</div></div></label>
     <div class="fg"><label>Invoice note (shown in brackets)</label><input id="pNote" value="Invoice on the 1st of every month, 14 days credit term" oninput="recalc()"></div>`
     :m==='deposit'?`<div class="fg"><label>Deposit (months)</label>
         <select id="pDep2" onchange="recalc()">
           <option value="1" selected>1 month</option><option value="2">2 months</option>
-        </select></div>`:'';
+        </select></div>
+      <label class="chk-row" style="margin-top:4px">
+        <input type="checkbox" id="depIncludeFee" checked onchange="recalc()">
+        <div><div class="chk-lbl">Include admin fees in deposit</div>
+        <div class="chk-sub">Default: deposit = (salary + admin fees) × months. Uncheck to base on salary only.</div></div>
+      </label>`:'';
 }
 
 /* ── Services ── */
@@ -507,23 +602,47 @@ function dragEnd(){dragId=null;dragOver_id=null;$('svcList').querySelectorAll('.
 
 /* ── Core calculation ── */
 function calcGroup(g){
-  const grossTotal=g.grossRows.reduce((a,r)=>a+r.val,0);
+  // hourly mode: calculate monthly remuneration from hourly rate × hours/month
+  let grossTotal;
+  if(g.hourly && g.hourlyRate>0){
+    grossTotal = g.hourlyRate * g.hoursPerMonth;
+  } else {
+    grossTotal = g.grossRows.reduce((a,r)=>a+r.val,0);
+  }
   const aws=g.awsMode==='auto'?(g.grossRows[0]?.val||0)/12:g.awsMode==='custom'?g.awsAmt:0;
   const base=grossTotal+aws; // base for SDL/WICA/CPF
   const cpf=TYPES[g.type].cpf?base*0.17:0;
-  const sdl=base*0.0025;
+  const sdl=Math.min(Math.max(base*0.0025, 2.00), 11.25); // min $2.00, max $11.25 per pax
   const wica=base*(g.wica/100);
   const stat=cpf+g.levy+g.medical+sdl+wica;
   const disbPerPax=base+stat;
-  // fees
-  const fm=$('selFee').value;
-  const fLabel=$('feeLabel').value||'Admin Fees';
+  // fees — use per-group override if set, else global
+  const useGrpFee = g.feeOverride;
+  const gfm = useGrpFee ? g.grpFeeMode : $('selFee').value;
+  const gfLabel = useGrpFee ? (g.grpFeeLabel||'Admin Fees') : ($('feeLabel').value||'Admin Fees');
+  const fm=gfm; const fLabel=gfLabel;
   let feePerPax=0,feeIsLump=false,feeLumpTotal=0,feeFormula='',feeLabel2='';
-  if(fm==='flat'){feePerPax=num($('fFlat')?.value);feeLabel2=fLabel;}
-  else if(fm==='max'){const fl=num($('fFloor')?.value),fp=num($('fPct')?.value);feePerPax=Math.max(fl,disbPerPax*fp/100);feeLabel2=`${fLabel}\n($${fl} or ${fp}% of total salary disbursement whichever is higher)`;feeFormula=`MAX(${fl},{DISB}*${fp}%)`;}
-  else if(fm==='pct'){const fp=num($('fPct2')?.value);feePerPax=disbPerPax*fp/100;feeLabel2=fLabel;feeFormula=`{DISB}*${fp}%`;}
-  else if(fm==='lump'){feeLumpTotal=num($('fLump')?.value);feePerPax=feeLumpTotal/12;feeIsLump=true;const sfx=$('fLumpSfx')?.value||'12 months';feeLabel2=`${fLabel} (${sfx})`;feeLumpTotal=feeLumpTotal;}
-  else if(fm==='tiered'){const fb=num($('fBase')?.value),tp=num($('fTierPct')?.value),te=num($('fTierExtra')?.value);feePerPax=fb+(te*tp/100);feeLabel2=fLabel;}
+  if(fm==='flat'){
+    const fv=useGrpFee?g.grpFeeFlat:num($('fFlat')?.value);
+    feePerPax=fv;feeLabel2=fLabel;
+  } else if(fm==='max'){
+    const fl=useGrpFee?g.grpFeeFloor:num($('fFloor')?.value);
+    const fp=useGrpFee?g.grpFeePct:num($('fPct')?.value);
+    feePerPax=Math.max(fl,disbPerPax*fp/100);
+    feeLabel2=`${fLabel}\n($${fl} or ${fp}% of total salary disbursement whichever is higher)`;
+    feeFormula=`MAX(${fl},{DISB}*${fp}%)`;
+  } else if(fm==='pct'){
+    const fp=useGrpFee?g.grpFeePct:num($('fPct2')?.value);
+    feePerPax=disbPerPax*fp/100;feeLabel2=fLabel;
+  } else if(fm==='lump'){
+    feeLumpTotal=useGrpFee?g.grpFeeFlat*12:num($('fLump')?.value);
+    feePerPax=feeLumpTotal/12;feeIsLump=true;
+    const sfx=$('fLumpSfx')?.value||'12 months';
+    feeLabel2=`${fLabel} (${sfx})`;
+  } else if(fm==='tiered'){
+    const fb=num($('fBase')?.value),tp=num($('fTierPct')?.value),te=num($('fTierExtra')?.value);
+    feePerPax=fb+(te*tp/100);feeLabel2=fLabel;
+  } else { feeLabel2=fLabel; }
   const totalPerPax=disbPerPax+feePerPax;
   return {g,grossTotal,aws,base,cpf,sdl,wica,stat,disbPerPax,feePerPax,feeIsLump,feeLumpTotal,feeFormula,feeLabel:feeLabel2,totalPerPax};
 }
@@ -550,9 +669,13 @@ function buildRows(g,c){
   T('blank','','',false,'');
   T('head','Gross Salary Breakdown',bGST?'Rate \n(Before GST)':'Rate',false,'');
   // gross rows — all salary components
-  g.grossRows.forEach(r=>{T('item',r.label,r.val,false,r.remark||'',true);});
+  if(g.hourly){
+    T('item',`Hourly rate (${g.hoursPerMonth} hrs/mth)`,c.base,false,'',true);
+  } else {
+    g.grossRows.forEach(r=>{T('item',r.label,r.val,false,r.remark||'',true);});
+  }
   // AWS always in Gross section
-  if(c.aws>0){T('item','Annual Wage Supplement',c.aws,false,g.remarkAWS||'',true);}
+  if(c.aws>0){T('item',g.awsLabel||'Annual Wage Supplement',c.aws,false,g.remarkAWS||'',true);}
   // Monthly Remuneration subtotal — only show if there are multiple gross components
   const hasMultipleGross = g.grossRows.length > 1 || c.aws > 0;
   if(hasMultipleGross) T('item','Monthly Remuneration',c.base,false,'',true);
@@ -569,45 +692,50 @@ function buildRows(g,c){
   let disbRow=rows.length;
   // fees
   if(fm==='lump'){
-    T('item',c.feeLabel,c.feeLumpTotal,true,'',true);
-    T('item','Monthly Admin Fees (Per month after GST)',c.feeLumpTotal/12,true,'');
+    T('item',c.feeLabel,c.feeLumpTotal,true,payRemarks.fee||'',true);
+    T('item','Monthly Admin Fees (Per month after GST)',c.feeLumpTotal/12,true,payRemarks.fee||'');
   } else if(fm!=='none'){
-    T('item',c.feeLabel,c.feePerPax,true,'',true);
+    T('item',c.feeLabel,c.feePerPax,true,payRemarks.fee||'',true);
   }
   let feeRow=rows.length;
   // deposit (deposit style)
   if(pm==='deposit'){
     const dep=num($('pDep2')?.value)||1;
-    T('item',`Deposit: ${dep} month salary disbursement`,c.disbPerPax*dep,true,'',true);
+    const depIncFee=document.getElementById('depIncludeFee')?.checked!==false;
+    const depBase=depIncFee?(c.disbPerPax+c.feePerPax):c.disbPerPax;
+    const depLabel=depIncFee?`Deposit: ${dep} month${dep>1?'s':''} (salary + admin fees)`:`Deposit: ${dep} month${dep>1?'s':''} salary disbursement`;
+    T('item',depLabel,depBase*dep,true,payRemarks.deposit||'',true);
   }
   // payment lines
   const wp=svcs.find(s=>/work pass application/i.test(s.name));
   const wpVal=wp?wp.rate:0;
   const note=$('pNote')?.value||'';
   if(pm==='simple'){
-    T('item','Total Charges Per Month',c.totalPerPax,false,'',true);
+    T('item','Total Charges Per Month',c.totalPerPax,false,payRemarks.total||'',true);
   } else if(pm==='staged'){
     const dep=num($('pDep')?.value),up=num($('pUp')?.value)||1;
     const bundle=$('chk1stIncludesAdminFee')?.checked;
     T('blank','','',false,'');
     if(bundle){
       const first=wpVal+c.disbPerPax+c.feePerPax;
-      T('item','1st Payment: Work Pass Application Fees + 1 month admin fee + 1 month salary disbursement',first,true,'');
-      T('item',`Subsequent Payment: Salary Disbursement${fm!=='none'?' + Monthly Admin Fees':''}`+(note?`\n(${note})`:''),c.totalPerPax,true,'',true);
+      T('item','1st Payment: Work Pass Application Fees + 1 month admin fee + 1 month salary disbursement',first,true,payRemarks.first||'');
+      T('item',`Subsequent Payment: Salary Disbursement${fm!=='none'?' + Monthly Admin Fees':''}`+(note?`\n(${note})`:''),c.totalPerPax,true,payRemarks.subsequent||'',true);
     } else {
-      T('item','1st Payment: Work Pass Application Fees',wpVal,true,'');
+      T('item','1st Payment: Work Pass Application Fees',wpVal,true,payRemarks.first||'');
       const parts=[];
       if(fm==='lump')parts.push(`${c.feeLabel.split('\n')[0]} for 12 months`);
       else if(fm!=='none'&&up>1)parts.push(`Admin Fee for ${up} months`);
       else if(fm!=='none')parts.push('1 month admin fee');
       if(dep>0)parts.push(`Deposit`);
       parts.push(up>1?`${up} Months Salary Disbursement`:'1st Month Salary Disbursement');
-      const second=(fm==='lump'?c.feeLumpTotal:c.feePerPax*up)+dep*c.disbPerPax+up*c.disbPerPax;
-      T('item',`2nd Payment: ${parts.join(' + ')}`,second,true,'');
-      T('item',`Subsequent Payment: Salary Disbursement${fm!=='none'&&fm!=='lump'?' + Monthly Admin Fees':''}`+(note?`\n(${note})`:''),fm==='lump'?c.disbPerPax:c.totalPerPax,true,'',true);
+      const depIncFeeSt=document.getElementById('depIncludeFeeSt')?.checked!==false;
+      const stDepBase=depIncFeeSt?(c.disbPerPax+c.feePerPax):c.disbPerPax;
+      const second=(fm==='lump'?c.feeLumpTotal:c.feePerPax*up)+dep*stDepBase+up*c.disbPerPax;
+      T('item',`2nd Payment: ${parts.join(' + ')}`,second,true,payRemarks.second||'');
+      T('item',`Subsequent Payment: Salary Disbursement${fm!=='none'&&fm!=='lump'?' + Monthly Admin Fees':''}`+(note?`\n(${note})`:''),fm==='lump'?c.disbPerPax:c.totalPerPax,true,payRemarks.subsequent||'',true);
     }
   } else if(pm==='deposit'){
-    T('item',`Monthly Payment: Salary Disbursement${fm!=='none'?' + Monthly Admin Fees':''}`,c.totalPerPax,true,'',true);
+    T('item',`Monthly Payment: Salary Disbursement${fm!=='none'?' + Monthly Admin Fees':''}`,c.totalPerPax,true,payRemarks.monthly||'',true);
   }
   // optional services
   const hasSvcs=svcs.some(s=>s.name.trim());
@@ -662,6 +790,59 @@ function recalc(){
     }).join('');;
     return`<div style="border-bottom:1px solid var(--border)"><div class="preview-tab"><span Tab: ${esc(tn)}<span class="preview-tab-stat">${g.pax} pax${g.sameSalary&&g.pax>1?' · Total: '+fmtS(c.totalPerPax*g.pax):' · per pax: '+fmtS(c.totalPerPax)}</span></div><div class="preview-body"><div class="xlt" style="padding:0"><table>${trs}</table></div></div></div>`;
   }).join('');
+
+  // ── Summary: Total to Collect across all groups ──
+  if(groups.length > 1){
+    const allCalcs = groups.map(g=>({g, c:calcGroup(g)}));
+    const paxFmt = (g,c) => (g.sameSalary&&g.pax>1)?g.pax:1;
+    const grandMonthly = allCalcs.reduce((sum,{g,c})=> sum + c.totalPerPax * paxFmt(g,c), 0);
+    const grandDisb    = allCalcs.reduce((sum,{g,c})=> sum + c.disbPerPax  * paxFmt(g,c), 0);
+    const grandFee     = allCalcs.reduce((sum,{g,c})=> sum + c.feePerPax   * paxFmt(g,c), 0);
+    const totalPax     = allCalcs.reduce((sum,{g,c})=> sum + paxFmt(g,c), 0);
+
+    const summaryRows = allCalcs.map(({g,c},i)=>{
+      const px = paxFmt(g,c);
+      const grpTotal = c.totalPerPax * px;
+      return `<tr class="bordered">
+        <td class="a">${esc(tabLabel(g,i))} <span style="font-size:10.5px;color:var(--text2)">(${px} pax)</span></td>
+        <td class="b">${fmtS(c.totalPerPax)}</td>
+        <td class="p">${px}</td>
+        <td class="t">${fmtS(grpTotal)}</td>
+      </tr>`;
+    }).join('');
+
+    const sumHtml = `<div style="border-bottom:1px solid var(--border)">
+      <div class="preview-tab">
+        <span>Summary — Total Monthly to Collect</span>
+        <span class="preview-tab-stat">${totalPax} pax total · ${fmtS(grandMonthly)}</span>
+      </div>
+      <div class="preview-body"><div class="xlt" style="padding:0"><table>
+        <tr class="bordered sechead">
+          <td class="a">Worker group</td>
+          <td class="b" style="text-align:right">Per pax (S$)</td>
+          <td class="p" style="text-align:right">Pax</td>
+          <td class="t" style="text-align:right">Monthly (S$)</td>
+        </tr>
+        ${summaryRows}
+        <tr class="bordered bold">
+          <td class="a">Total salary disbursement</td>
+          <td class="b"></td><td class="p"></td>
+          <td class="t">${fmtS(grandDisb)}</td>
+        </tr>
+        <tr class="bordered bold">
+          <td class="a">Total admin fees</td>
+          <td class="b"></td><td class="p"></td>
+          <td class="t">${fmtS(grandFee)}</td>
+        </tr>
+        <tr class="bordered" style="background:#f2f5f9">
+          <td class="a" style="font-weight:700;color:var(--navy)">Grand total — monthly to collect</td>
+          <td class="b"></td><td class="p"></td>
+          <td class="t" style="font-weight:800;color:var(--navy)">${fmtS(grandMonthly)}</td>
+        </tr>
+      </table></div></div>
+    </div>`;
+    $('prvArea').innerHTML += sumHtml;
+  }
 }
 
 function tabLabel(g,i){
@@ -812,7 +993,7 @@ function exportPDF(){
     });
 
     const pax=(g.sameSalary&&g.pax>1)?g.pax:1;
-    const showPaxCol=pax>1;
+    showPaxCol=pax>1;
     const cols=showPaxCol
       ?(hasRemarks?{0:{cellWidth:86},1:{cellWidth:38,halign:'right'},2:{cellWidth:14,halign:'right'},3:{cellWidth:38,halign:'right'},4:{cellWidth:6}}
                   :{0:{cellWidth:92},1:{cellWidth:38,halign:'right'},2:{cellWidth:14,halign:'right'},3:{cellWidth:38,halign:'right'}})
@@ -841,7 +1022,8 @@ function exportPDF(){
 function fn(ext){return`Monthly_Disbursement_Table_${($('cName').value||'Client').replace(/[^a-z0-9]+/gi,'_')}_${new Date().toISOString().slice(0,10)}.${ext}`;}
 function dl(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},500);}
 
-renderFeeFields();renderPayFields();renderSvcs();addGroup();recalc();
+let payRemarks={fee:'',deposit:'',total:'',monthly:'',first:'',second:'',subsequent:''};
+renderFeeFields();renderPayFields();renderPayRemarks();renderSvcs();addGroup();recalc();
 
 function startNew(){
   document.getElementById('welcomeOverlay').style.display='none';
@@ -948,102 +1130,108 @@ function parsePDFLines(lines){
   pageStarts.forEach((start,gi)=>{
     const end = pageStarts[gi+1] || lines.length;
     const glines = lines.slice(start, end);
+    const dt = TYPES['wp'];
     const g = {
       type:'wp', pax:1, sameSalary:true, tabName:'',
       grossRows:[{id:Date.now()+gi*1000, label:'Monthly Remuneration', val:0, remark:''}],
-      awsMode:'none', awsAmt:0, levy:800, medical:5.89, wica:1.5,
+      awsMode:'none', awsAmt:0, awsLabel:'Annual Wage Supplement',
+      levy:dt.levy, medical:5.89, wica:1.5,
+      feeOverride:true, grpFeeMode:'flat', grpFeeFlat:0, grpFeeFloor:0, grpFeePct:0, grpFeeLabel:'Admin Fees',
+      hourly:false, hourlyRate:0, hoursPerMonth:0,
       remarkLevy:'', remarkMedical:'', remarkCPF:'', remarkSDL:'', remarkWICA:'', remarkAWS:'',
-      cpfOverride:false
+      cpfOverride:false, commission:0
     };
 
-    let inGross=false, inStat=false, inOpt=false;
-    let grossRows=[], awsVal=null;
+    let inGross=false, inStat=false, inOpt=false, inPayment=false;
+    let grossRows=[], awsVal=null, feeFound=false;
 
     glines.forEach((line,li)=>{
       const l = line.trim();
       if(!l) return;
 
-      if(/gross salary breakdown/i.test(l)){ inGross=true; inStat=false; inOpt=false; return; }
-      if(/statutory employer obligation/i.test(l)){ inGross=false; inStat=true; inOpt=false; return; }
-      if(/optional services/i.test(l)){ inGross=false; inStat=false; inOpt=true; return; }
-      if(/total salary disbursement/i.test(l)){ inGross=false; inStat=false; return; }
+      // section markers
+      if(/gross salary breakdown/i.test(l)){       inGross=true;  inStat=false; inOpt=false; inPayment=false; return; }
+      if(/statutory employer obligation/i.test(l)){ inGross=false; inStat=true;  inOpt=false; inPayment=false; return; }
+      if(/optional services/i.test(l)){             inGross=false; inStat=false; inOpt=true;  inPayment=false; return; }
+      if(/total salary disbursement per month/i.test(l)){ inGross=false; inStat=false; inPayment=true; return; }
 
-      // detect worker type from levy or pass mention
-      if(/employment pass|ep worker/i.test(l)) g.type='ep';
-      else if(/s pass/i.test(l)) g.type='sp';
-      else if(/local worker|sc \/ pr/i.test(l)) g.type='local';
-      else if(/work permit/i.test(l)) g.type='wp';
+      // worker type — detected from tab header or pass type mentions
+      if(/wp.*prc|prc.*wp/i.test(l))          { g.type='wpprc'; g.levy=TYPES.wpprc.levy; }
+      else if(/employment pass|ep worker/i.test(l)) { g.type='ep';    g.levy=0; }
+      else if(/s pass/i.test(l))                   { g.type='sp';    g.levy=TYPES.sp.levy; }
+      else if(/local worker|sc.*pr/i.test(l))      { g.type='local'; g.levy=0; }
+      else if(/work permit/i.test(l) && !inOpt)    { g.type='wp';    g.levy=TYPES.wp.levy; }
 
-      // pax — "3 pax" pattern
+      // pax count
       const paxM = l.match(/(\d+)\s*pax/i);
-      if(paxM){ g.pax=parseInt(paxM[1]); g.sameSalary=true; matched.push('Pax count'); }
+      if(paxM && parseInt(paxM[1])>0){ g.pax=parseInt(paxM[1]); g.sameSalary=true; matched.push(`Group ${gi+1}: Pax`); }
 
+      // ── Gross section ──
       if(inGross){
-        // look for label + dollar value pairs
         const vm = money(l);
-        if(/monthly remuneration/i.test(l) && vm!==null){
-          grossRows.push({id:Date.now()+li, label:'Monthly Remuneration', val:vm, remark:''});
-          matched.push('Monthly Remuneration');
-        } else if(/annual wage supplement|aws/i.test(l) && vm!==null){
-          awsVal = vm;
-          matched.push('AWS');
-        } else if(/allowance/i.test(l) && vm!==null){
-          grossRows.push({id:Date.now()+li+1, label:l.split('$')[0].trim()||'Allowance', val:vm, remark:''});
-          matched.push('Allowance');
-        } else if(/commission/i.test(l) && vm!==null){
-          grossRows.push({id:Date.now()+li+2, label:'Commission', val:vm, remark:''});
-          matched.push('Commission');
+        if(vm===null) return;
+        if(/monthly remuneration/i.test(l) && !grossRows.find(r=>/monthly remuneration/i.test(r.label))){
+          grossRows.push({id:Date.now()+gi*1000+li, label:'Monthly Remuneration', val:vm, remark:''});
+          matched.push(`Group ${gi+1}: Remuneration`);
+        } else if(/annual wage supplement|aws/i.test(l)){ awsVal=vm; matched.push(`Group ${gi+1}: AWS`); }
+        else if(/allowance/i.test(l)){
+          const lbl=l.replace(/\$[\d,.]*/g,'').replace(/\s+/g,' ').trim()||'Allowance';
+          grossRows.push({id:Date.now()+gi*1000+li+1, label:lbl, val:vm, remark:''});
+          matched.push(`Group ${gi+1}: Allowance`);
+        } else if(/commission/i.test(l)){
+          grossRows.push({id:Date.now()+gi*1000+li+2, label:'Commission', val:vm, remark:''});
+          matched.push(`Group ${gi+1}: Commission`);
+        } else if(/hourly rate/i.test(l)){
+          g.hourly=true;
+          const hrM=l.match(/(\d+)\s*hrs/i); if(hrM) g.hoursPerMonth=parseInt(hrM[1]);
+          g.hourlyRate=vm; matched.push(`Group ${gi+1}: Hourly rate`);
         }
       }
 
+      // ── Statutory section ──
       if(inStat){
         const vm = money(l);
-        if(/^levy/i.test(l) && vm!==null){ g.levy=vm; matched.push('Levy'); }
-        if(/medical insurance/i.test(l) && vm!==null){ g.medical=vm; matched.push('Medical insurance'); }
-        if(/work injury compensation/i.test(l)){
-          const pp = pct(l); if(pp) g.wica=pp;
-          matched.push('WICA %');
-        }
-        // detect CPF → local worker
-        if(/cpf/i.test(l) && vm!==null){ g.type='local'; matched.push('CPF (local worker)'); }
-        // waived remarks
+        if(/^levy/i.test(l) && vm!==null)          { g.levy=vm;    matched.push(`Group ${gi+1}: Levy`); }
+        if(/medical insurance/i.test(l) && vm!==null){ g.medical=vm; matched.push(`Group ${gi+1}: Medical`); }
+        if(/work injury compensation/i.test(l))     { const pp=pct(l); if(pp){ g.wica=pp; matched.push(`Group ${gi+1}: WICA`); } }
+        if(/cpf.*employer|employer.*17/i.test(l))   { g.type='local'; matched.push(`Group ${gi+1}: CPF→Local`); }
         if(/waived/i.test(l)){
-          if(inStat && /medical/i.test(glines[li-1]||'')) g.remarkMedical='Waived off';
-          if(inStat && /levy/i.test(glines[li-1]||'')) g.remarkLevy='Waived off';
+          const prev=glines[li-1]||'';
+          if(/medical/i.test(prev)) g.remarkMedical='Waived off';
+          if(/levy/i.test(prev))    g.remarkLevy='Waived off';
         }
       }
 
-      if(inOpt){
+      // ── Payment section — capture admin fees ──
+      if(inPayment){
         const vm = money(l);
-        if(vm!==null){
-          const name=l.split('$')[0].replace(/\d[\d,.]*/,'').trim()||l;
-          // only add if not already in default svcs
-          const exists=out.svcs.find(s=>s.name.toLowerCase()===name.toLowerCase());
-          if(!exists && name.length>2) out.svcs.push({id:Date.now()+li*10, name, rate:vm, remark:''});
+        if(vm!==null && !feeFound && /admin fees|service fees|management fee/i.test(l)){
+          feeFound=true;
+          g.grpFeeMode='flat'; g.grpFeeFlat=vm;
+          g.grpFeeLabel=l.replace(/\$[\d,.]*/g,'').replace(/\(.*\)/g,'').trim()||'Admin Fees';
+          if(/or.*%|whichever/i.test(l)){ g.grpFeeMode='max'; const pp=pct(l); if(pp)g.grpFeePct=pp; }
+          matched.push(`Group ${gi+1}: Admin fee`);
         }
-      }
-
-      // fees parsing (outside sections)
-      if(!inGross && !inStat && !inOpt){
-        const vm = money(l);
-        if(/admin fees|service fees|management fee/i.test(l) && vm!==null){
-          if(/12 months|lump/i.test(l)){ out.feeMode='lump'; out.feeLump=vm; matched.push('Lump fee'); }
-          else if(/or.*%|whichever/i.test(l)){ out.feeMode='max'; const pp=pct(l); if(pp)out.feePct=pp; matched.push('Max fee'); }
-          else { out.feeMode='flat'; out.feeFlat=vm; matched.push('Flat fee'); }
-          out.feeLabel = l.split('\n')[0].split('$')[0].trim().replace(/\(.*$/,'').trim() || 'Admin Fees';
-        }
-        // staged payment detection
+        if(/deposit.*month/i.test(l)){ const dm=l.match(/(\d+)\s*month/i); if(dm)out.depMonths=parseInt(dm[1]); }
         if(/1st payment|2nd payment/i.test(l)) out.payMode='staged';
-        if(/deposit.*month/i.test(l)){ const dm2=l.match(/(\d+)\s*month/i); if(dm2)out.depMonths=parseInt(dm2[1]); }
+      }
+
+      // ── Optional services (shared across groups, first page wins) ──
+      if(inOpt && gi===0){
+        const vm=money(l);
+        if(vm!==null){
+          const name=l.replace(/\$[\d,.]*/g,'').replace(/[\d,]+\.\d*/g,'').trim();
+          if(name.length>2 && !out.svcs.find(s=>s.name.toLowerCase()===name.toLowerCase())){
+            out.svcs.push({id:Date.now()+li*10+gi, name, rate:vm, remark:''});
+          }
+        }
       }
     });
 
-    // apply gross rows
-    if(grossRows.length>0) g.grossRows = grossRows.map((r,ri)=>({...r, id:Date.now()+gi*100+ri}));
+    // finalise group
+    if(grossRows.length>0) g.grossRows=grossRows.map((r,ri)=>({...r,id:Date.now()+gi*100+ri}));
     if(awsVal!==null){ g.awsMode='custom'; g.awsAmt=awsVal; }
-    if(g.type==='local') g.levy=0;
-    if(g.type==='ep') g.levy=0;
-
+    if(!feeFound) g.feeOverride=false; // fall back to global fee if not found
     out.groups.push(g);
   });
 
