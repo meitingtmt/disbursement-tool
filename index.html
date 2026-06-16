@@ -178,7 +178,7 @@ textarea{resize:vertical;line-height:1.5}
       Load from PDF
     </button>
     <input type="file" id="pdfUpload" accept=".pdf" style="display:none" onchange="loadFromPDF(this)">
-    <button class="tbtn outline" onclick="exportPDF()">
+    <button class="tbtn outline" id="pdfBtn" onclick="exportPDFSafe()">
       <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="2" y="1" width="10" height="12" rx="1.5"/><path d="M4 4h6M4 7h6M4 10h4"/></svg>
       PDF
     </button>
@@ -253,18 +253,25 @@ textarea{resize:vertical;line-height:1.5}
 
     <div class="card">
       <div class="card-title">Admin &amp; service fees</div>
-      <div class="fg"><label>Fee type</label>
-        <select id="selFee" onchange="renderFeeFields();renderPayRemarks();recalc()">
-          <option value="none">No admin fee</option>
-          <option value="flat" selected>Flat monthly fee</option>
-          <option value="max">Higher of $X or Y% of disbursement</option>
-          <option value="pct">% of disbursement (no floor)</option>
-          <option value="lump">One-time lump sum (12 months)</option>
-          <option value="tiered">Tiered (base fee + % on extra salary)</option>
-        </select>
+      <label class="chk-row" style="margin-bottom:10px">
+        <input type="checkbox" id="chkSameFee" checked onchange="renderFeeFields();renderPayRemarks();recalc()">
+        <div><div class="chk-lbl">Same fee rate for all worker groups</div>
+        <div class="chk-sub">Uncheck to set fees per group individually (in each worker group card above).</div></div>
+      </label>
+      <div id="globalFeeFields">
+        <div class="fg"><label>Fee type</label>
+          <select id="selFee" onchange="renderFeeFields();renderPayRemarks();recalc()">
+            <option value="none">No admin fee</option>
+            <option value="flat" selected>Flat monthly fee</option>
+            <option value="max">Higher of $X or Y% of disbursement</option>
+            <option value="pct">% of disbursement (no floor)</option>
+            <option value="lump">One-time lump sum (12 months)</option>
+            <option value="tiered">Tiered (base fee + % on extra salary)</option>
+          </select>
+        </div>
+        <div id="feeFields"></div>
+        <div class="fg"><label>Fee label <span class="opt">(appears on sheet)</span></label><input id="feeLabel" value="Admin Fees" oninput="recalc()"></div>
       </div>
-      <div id="feeFields"></div>
-      <div class="fg"><label>Fee label <span class="opt">(appears on sheet)</span></label><input id="feeLabel" value="Admin Fees" oninput="recalc()"></div>
     </div>
 
     <div class="card">
@@ -338,7 +345,7 @@ function addGroup(){
     awsInGross:false,awsMode:'none',awsAmt:0,commission:0,
     levy:dt.levy,medical:5.89,wica:1.5,cpfOverride:false,sameSalary:true,awsLabel:'Annual Wage Supplement',
     feeOverride:false,grpFeeMode:dt.feeMode,grpFeeFlat:dt.feeFlat,grpFeeFloor:dt.feeFloor,grpFeePct:dt.feePct,grpFeeLabel:'Admin Fees',
-    hourly:false,hourlyRate:0,hoursPerMonth:0,
+    hourly:false,hourlyRate:0,hoursPerMonth:0,secBond:false,secBondAmount:5000,secBondFee:140,
     remarkLevy:'',remarkMedical:'',remarkCPF:'',remarkSDL:'',remarkWICA:'',remarkAWS:''});
   renderGroups();recalc();
 }
@@ -375,6 +382,14 @@ function removeGrossRow(gid,rid){
   renderGroups();recalc();
 }
 
+function samePkgChk(g){
+  if(g.pax<=1) return '';
+  const chk = g.sameSalary ? 'checked' : '';
+  const fn = 'upG('+g.id+",\'sameSalary\',this.checked);recalc()";
+  return '<label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:500;color:#5a6878;cursor:pointer">'
+    + '<input type="checkbox" '+chk+' onchange="'+fn+'">'
+    + ' All '+g.pax+' pax on same salary package</label>';
+}
 function renderGroups(){
   $('gList').innerHTML=groups.map((g,i)=>`
   <div class="grp">
@@ -399,10 +414,7 @@ function renderGroups(){
       <label>No. of pax</label>
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
         <input type="number" min="1" value="${g.pax}" style="width:70px" oninput="upG(${g.id},'pax',this.value)">
-        <label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:500;color:var(--text2);cursor:pointer;white-space:nowrap">
-          <input type="checkbox" ${g.sameSalary?'checked':''} onchange="upG(${g.id},'sameSalary',this.checked);recalc()">
-          All ${g.pax} pax on same salary package
-        </label>
+        ${samePkgChk(g)}
       </div>
       <div class="hint" style="margin-top:3px">${g.sameSalary||g.pax<=1?'Table will show rate × pax = total for each line.':'Different salaries? Uncheck and add a separate group per worker.'}</div>
     </div>
@@ -415,16 +427,16 @@ function renderGroups(){
     ${g.hourly?`
     <div class="r2">
       <div class="fg"><label>Hourly rate (S$)</label>
-        <input type="number" min="0" step="0.5" value="${g.hourlyRate}" oninput="upG(${g.id},'hourlyRate',this.value)">
+        <input type="number" min="0" step="0.5" value="${g.hourlyRate||0}" oninput="upG(${g.id},'hourlyRate',this.value)">
       </div>
-      <div class="fg"><label>Hours per month</label>
-        <input type="number" min="0" step="1" value="${g.hoursPerMonth}" oninput="upG(${g.id},'hoursPerMonth',this.value)">
+      <div class="fg"><label>Working hours per month</label>
+        <input type="number" min="0" step="1" value="${g.hoursPerMonth||0}" oninput="upG(${g.id},'hoursPerMonth',this.value)">
       </div>
     </div>
     <div class="fg"><label>Estimated monthly remuneration</label>
-      <div class="auto-val">${fmtS(g.hourlyRate*(g.hoursPerMonth||0))}</div>
+      <div class="auto-val">${g.hourlyRate>0&&g.hoursPerMonth>0?fmtS(g.hourlyRate*g.hoursPerMonth):'— key in rate and hours above'}</div>
     </div>
-    <div class="hint">S$ ${g.hourlyRate.toFixed(2)} × ${g.hoursPerMonth} hrs = ${fmtS(g.hourlyRate*g.hoursPerMonth)} / month</div>
+    <div class="hint">Monthly remuneration = hourly rate × hours/month. Statutory deductions apply on this figure.</div>
     `:`
     <div class="fg"><label>Components</label>
       ${g.grossRows.map((r,ri)=>{const rmk=document.getElementById('chkRemarks')?.checked;return`
@@ -441,13 +453,18 @@ function renderGroups(){
       <div class="fg"><label>AWS / Bonus accrual</label>
         <select onchange="upG(${g.id},'awsMode',this.value)">
           <option value="none"${g.awsMode==='none'?' selected':''}>None</option>
-          <option value="auto"${g.awsMode==='auto'?' selected':''}>Auto — 1 month basic ÷ 12</option>
-          <option value="custom"${g.awsMode==='custom'?' selected':''}>Custom amount / mth</option>
+          <option value="auto"${g.awsMode==='auto'?' selected':''}>AWS — 1 month basic ÷ 12 (auto)</option>
+          <option value="months"${g.awsMode==='months'?' selected':''}>X months bonus ÷ 12</option>
+          <option value="custom"${g.awsMode==='custom'?' selected':''}>Fixed custom amount / mth</option>
         </select></div>
-      <div class="fg"><label>${g.awsMode==='custom'?'Monthly accrual (S$)':'Monthly accrual (auto)'}</label>
-        ${g.awsMode==='custom'
-          ?`<input type="number" min="0" value="${g.awsAmt}" oninput="upG(${g.id},'awsAmt',this.value)">`
-          :`<div class="auto-val">${g.awsMode==='auto'?fmtS((g.grossRows[0]?.val||0)/12):'—'}</div>`}
+      <div class="fg">
+        ${g.awsMode==='months'?`<label>No. of bonus months</label>
+          <input type="number" min="0" step="0.5" value="${g.awsMonths||1}" oninput="upG(${g.id},'awsMonths',this.value)">
+          <div class="hint">Monthly accrual = ${fmtS((g.grossRows[0]?.val||0)*(g.awsMonths||1)/12)}</div>`
+        :g.awsMode==='custom'?`<label>Monthly accrual (S$)</label>
+          <input type="number" min="0" value="${g.awsAmt||0}" oninput="upG(${g.id},'awsAmt',this.value)">`
+        :`<label>Monthly accrual (auto)</label>
+          <div class="auto-val">${g.awsMode==='auto'?fmtS((g.grossRows[0]?.val||0)/12):'—'}</div>`}
       </div>
     </div>
     ${g.awsMode!=='none'?`<div class="fg"><label>Bonus / AWS label <span class="opt">(shown on table)</span></label>
@@ -462,6 +479,22 @@ function renderGroups(){
     </div>
     <div class="hint">CPF 17% employer: ${TYPES[g.type].cpf?'auto-included (local worker)':'not applicable for this pass type'}</div>
 
+    ${g.type==='wpprc'?`
+    <div class="mini-sec" style="margin-top:14px">Security bond (WP PRC)</div>
+    <label class="chk-row" style="margin-bottom:8px">
+      <input type="checkbox" ${g.secBond?'checked':''} onchange="upG(${g.id},'secBond',this.checked);recalc()">
+      <div><div class="chk-lbl">Collect security bond</div>
+      <div class="chk-sub">Security bond and admin fee will appear under one-time charges.</div></div>
+    </label>
+    ${g.secBond?`<div class="r2">
+      <div class="fg"><label>Bond amount (S$)</label>
+        <input type="number" min="0" value="${g.secBondAmount||5000}" oninput="upG(${g.id},'secBondAmount',this.value)">
+      </div>
+      <div class="fg"><label>Bond admin fee (S$)</label>
+        <input type="number" min="0" value="${g.secBondFee||140}" oninput="upG(${g.id},'secBondFee',this.value)">
+      </div>
+    </div>`:''}
+    `:''}
     <div class="mini-sec" style="margin-top:14px">Service fee for this group</div>
     <label class="chk-row" style="margin-bottom:8px">
       <input type="checkbox" ${g.feeOverride?'checked':''} onchange="upG(${g.id},'feeOverride',this.checked);recalc()">
@@ -504,6 +537,12 @@ function renderGroups(){
 
 /* ── Fee fields ── */
 function renderFeeFields(){
+  const sameFee = document.getElementById('chkSameFee')?.checked !== false;
+  const gff = document.getElementById('globalFeeFields');
+  if(gff) gff.style.display = sameFee ? '' : 'none';
+  // When not same fee, mark all groups as overriding
+  if(!sameFee) groups.forEach(g=>{ if(!g.feeOverride){ g.feeOverride=true; } });
+function _renderFeeFields(){
   const m=$('selFee').value;
   $('feeFields').innerHTML=
     m==='flat'?`<div class="fg"><label>Monthly fee per worker (S$)</label><input type="number" id="fFlat" min="0" value="650" oninput="recalc()"></div>`:
@@ -512,6 +551,8 @@ function renderFeeFields(){
     m==='lump'?`<div class="r2"><div class="fg"><label>Total lump sum (S$)</label><input type="number" id="fLump" min="0" value="12000" oninput="recalc()"></div><div class="fg"><label>Label suffix (e.g. "12 months")</label><input id="fLumpSfx" value="12 months" oninput="recalc()"></div></div>`:
     m==='tiered'?`<div class="r2"><div class="fg"><label>Base fee for first S$ of salary</label><input type="number" id="fBase" min="0" value="1600" oninput="recalc()"></div><div class="fg"><label>% on salary above threshold</label><input type="number" id="fTierPct" min="0" step="1" value="30" oninput="recalc()"></div></div><div class="r2"><div class="fg"><label>Base covers salary up to (S$)</label><input type="number" id="fTierThresh" min="0" value="7000" oninput="recalc()"></div><div class="fg"><label>Additional salary (S$) for tier 2</label><input type="number" id="fTierExtra" min="0" value="0" oninput="recalc()"></div></div>`:
     '';
+}
+_renderFeeFields();
 }
 
 /* ── Payment fields ── */
@@ -609,7 +650,7 @@ function calcGroup(g){
   } else {
     grossTotal = g.grossRows.reduce((a,r)=>a+r.val,0);
   }
-  const aws=g.awsMode==='auto'?(g.grossRows[0]?.val||0)/12:g.awsMode==='custom'?g.awsAmt:0;
+  const aws=g.awsMode==='auto'?(g.grossRows[0]?.val||0)/12:g.awsMode==='months'?(g.grossRows[0]?.val||0)*(g.awsMonths||1)/12:g.awsMode==='custom'?g.awsAmt:0;
   const base=grossTotal+aws; // base for SDL/WICA/CPF
   const cpf=TYPES[g.type].cpf?base*0.17:0;
   const sdl=Math.min(Math.max(base*0.0025, 2.00), 11.25); // min $2.00, max $11.25 per pax
@@ -706,6 +747,11 @@ function buildRows(g,c){
     const depLabel=depIncFee?`Deposit: ${dep} month${dep>1?'s':''} (salary + admin fees)`:`Deposit: ${dep} month${dep>1?'s':''} salary disbursement`;
     T('item',depLabel,depBase*dep,true,payRemarks.deposit||'',true);
   }
+  // security bond (WP PRC only)
+  if(g.type==='wpprc'&&g.secBond){
+    T('item','One-time Security Bond Admin Fees',g.secBondFee||140,true,'');
+    T('item','Security Bond Coverage',g.secBondAmount||5000,true,'');
+  }
   // payment lines
   const wp=svcs.find(s=>/work pass application/i.test(s.name));
   const wpVal=wp?wp.rate:0;
@@ -796,6 +842,14 @@ function recalc(){
     const allCalcs = groups.map(g=>({g, c:calcGroup(g)}));
     const paxFmt = (g,c) => (g.sameSalary&&g.pax>1)?g.pax:1;
     const grandMonthly = allCalcs.reduce((sum,{g,c})=> sum + c.totalPerPax * paxFmt(g,c), 0);
+    const pm=$('selPay').value;
+    const depM=num($('pDep')?.value||$('pDep2')?.value||0);
+    const depIncFeeSum=document.getElementById('depIncludeFee')?.checked!==false||document.getElementById('depIncludeFeeSt')?.checked!==false;
+    const grandDeposit=depM>0?allCalcs.reduce((sum,{g,c})=>{
+      const px=paxFmt(g,c);
+      const base=depIncFeeSum?(c.disbPerPax+c.feePerPax):c.disbPerPax;
+      return sum+base*depM*px;
+    },0):0;
     const grandDisb    = allCalcs.reduce((sum,{g,c})=> sum + c.disbPerPax  * paxFmt(g,c), 0);
     const grandFee     = allCalcs.reduce((sum,{g,c})=> sum + c.feePerPax   * paxFmt(g,c), 0);
     const totalPax     = allCalcs.reduce((sum,{g,c})=> sum + paxFmt(g,c), 0);
@@ -803,8 +857,9 @@ function recalc(){
     const summaryRows = allCalcs.map(({g,c},i)=>{
       const px = paxFmt(g,c);
       const grpTotal = c.totalPerPax * px;
+      const grpLabel = g.tabName.trim() || `${TYPES[g.type].label} (${TYPES[g.type].short})`;
       return `<tr class="bordered">
-        <td class="a">${esc(tabLabel(g,i))} <span style="font-size:10.5px;color:var(--text2)">(${px} pax)</span></td>
+        <td class="a">${esc(grpLabel)} <span style="font-size:10.5px;color:var(--text2)">(${px} pax)</span></td>
         <td class="b">${fmtS(c.totalPerPax)}</td>
         <td class="p">${px}</td>
         <td class="t">${fmtS(grpTotal)}</td>
@@ -834,6 +889,11 @@ function recalc(){
           <td class="b"></td><td class="p"></td>
           <td class="t">${fmtS(grandFee)}</td>
         </tr>
+        ${grandDeposit>0?`<tr class="bordered bold">
+          <td class="a">Total deposit to collect (one-time)</td>
+          <td class="b"></td><td class="p"></td>
+          <td class="t">${fmtS(grandDeposit)}</td>
+        </tr>`:''}
         <tr class="bordered" style="background:#f2f5f9">
           <td class="a" style="font-weight:700;color:var(--navy)">Grand total — monthly to collect</td>
           <td class="b"></td><td class="p"></td>
@@ -943,6 +1003,11 @@ async function exportExcel(){
 /* ── PDF export ── */
 function exportPDF(){
   if(!groups.length){alert('Add at least one worker group first.');return;}
+  // Check jsPDF is loaded
+  if(!window.jspdf||!window.jspdf.jsPDF){
+    alert('PDF library is still loading. Please wait a moment and try again.');return;
+  }
+  try{
   const {jsPDF}=window.jspdf;
   const doc=new jsPDF({unit:'mm',format:'a4'});
   const NAVY=[14,42,71],GREY=[246,248,251];
@@ -980,7 +1045,7 @@ function exportPDF(){
       if(r.kind==='title'){body.push([{content:tn,colSpan:pdfTotCols,_k:'title'}]);return;}
       if(r.kind==='head'){
         const paxHdr=showPaxCol?[{content:'Pax',_k:'head',_n:1},{content:'Total',_k:'head',_n:1}]:[];
-        if(hasRemarks)body.push([{content:r.a,_k:'head'},{content:r.b||'',_k:'head',_n:1},...paxHdr,{content:'',_k:'head'}]);
+        if(hasRemarks)body.push([{content:r.a,_k:'head'},{content:r.b||'',_k:'head',_n:1},...paxHdr,{content:'Remarks',_k:'head'}]);
         else body.push([{content:r.a,_k:'head'},{content:r.b||'',_k:'head',_n:1},...paxHdr]);
         return;
       }
@@ -995,12 +1060,13 @@ function exportPDF(){
     const pax=(g.sameSalary&&g.pax>1)?g.pax:1;
     showPaxCol=pax>1;
     const cols=showPaxCol
-      ?(hasRemarks?{0:{cellWidth:86},1:{cellWidth:38,halign:'right'},2:{cellWidth:14,halign:'right'},3:{cellWidth:38,halign:'right'},4:{cellWidth:6}}
+      ?(hasRemarks?{0:{cellWidth:72},1:{cellWidth:32,halign:'right'},2:{cellWidth:12,halign:'right'},3:{cellWidth:32,halign:'right'},4:{cellWidth:34}}
                   :{0:{cellWidth:92},1:{cellWidth:38,halign:'right'},2:{cellWidth:14,halign:'right'},3:{cellWidth:38,halign:'right'}})
-      :(hasRemarks?{0:{cellWidth:110},1:{cellWidth:45,halign:'right'},2:{cellWidth:27}}
+      :(hasRemarks?{0:{cellWidth:100},1:{cellWidth:45,halign:'right'},2:{cellWidth:37}}
                   :{0:{cellWidth:137},1:{cellWidth:45,halign:'right'}});
     doc.autoTable({
-      startY:28,margin:{left:14,right:14},body,theme:'plain',
+      startY:28,margin:{left:14,right:14},
+      tableWidth:'auto',body,theme:'plain',
       styles:{font:'helvetica',fontSize:9,cellPadding:{top:1,bottom:1,left:2,right:2},textColor:[28,39,51]},
       columnStyles:cols,
       didParseCell:(d)=>{
@@ -1011,14 +1077,31 @@ function exportPDF(){
         if(raw._k==='bold'){d.cell.styles.fontStyle='bold';}
         if(raw._k==='total'){d.cell.styles.fontStyle='bold';}
         if(raw._k==='blank'){d.cell.styles.cellPadding=0.5;}
-        if(raw._k==='rem'){d.cell.styles.textColor=[93,107,122];d.cell.styles.fontSize=8;}
+        if(raw._k==='rem'){d.cell.styles.textColor=[93,107,122];d.cell.styles.fontSize=8;d.cell.styles.cellWidth='wrap';d.cell.styles.overflow='linebreak';}
         if(raw._k==='disc'){d.cell.styles.fontStyle='italic';d.cell.styles.textColor=[93,107,122];d.cell.styles.fontSize=8;d.cell.styles.cellPadding={top:4,bottom:2,left:2,right:2};}
       }
     });
   });
   doc.save(fn('pdf'));
+  }catch(err){
+    console.error('PDF export error:',err);
+    alert('PDF export failed: '+err.message+'\n\nPlease check the browser console (F12) for details.');
+  }
 }
 
+function exportPDFSafe(){
+  const btn=document.getElementById('pdfBtn');
+  if(btn){btn.textContent='Generating...';btn.disabled=true;}
+  setTimeout(()=>{
+    exportPDF();
+    if(btn){
+      setTimeout(()=>{
+        btn.disabled=false;
+        btn.innerHTML='<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="2" y="1" width="10" height="12" rx="1.5"/><path d="M4 4h6M4 7h6M4 10h4"/></svg> PDF';
+      },500);
+    }
+  },50);
+}
 function fn(ext){return`Monthly_Disbursement_Table_${($('cName').value||'Client').replace(/[^a-z0-9]+/gi,'_')}_${new Date().toISOString().slice(0,10)}.${ext}`;}
 function dl(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},500);}
 
