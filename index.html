@@ -140,7 +140,7 @@ textarea{resize:vertical;line-height:1.5}
 .xlt .title td{font-weight:700;font-size:14px;border:none!important;padding-bottom:4px;color:var(--navy);letter-spacing:-.2px}
 .xlt .meta-row td{border:none!important;padding:1px 8px;font-size:11px;color:var(--text2)}
 .xlt .meta-row.entity td{font-size:12px;font-weight:700;color:var(--navy);padding-bottom:2px}
-.xlt .sechead td{font-weight:700;background:#F2F5F9;color:var(--navy)}
+.xlt .sechead td{font-weight:700;background:#F2F5F9;color:var(--navy);font-size:12.5px;font-family:'Inter',sans-serif}
 .xlt .bold td.a,.xlt .bold td.b,.xlt .bold td.t{font-weight:700}
 .xlt .disclaimer-row td{font-size:10.5px;color:var(--text2);font-style:italic;border:none!important;padding-top:10px;line-height:1.6}
 
@@ -319,7 +319,7 @@ textarea{resize:vertical;line-height:1.5}
 <script>
 
 const TYPES={
-  local:{label:'Local Worker',short:'LOC',levy:0,  cpf:true,  feeMode:'max',  feeFlat:255, feeFloor:255, feePct:10},
+  local:{label:'Local Worker',short:'Local',levy:0,  cpf:true,  feeMode:'max',  feeFlat:255, feeFloor:255, feePct:10},
   wp:   {label:'Work Permit', short:'WP', levy:800, cpf:false, feeMode:'flat', feeFlat:1000,feeFloor:0,   feePct:0},
   wpprc:{label:'Work Permit (PRC)', short:'WP(PRC)',levy:800,cpf:false,feeMode:'flat',feeFlat:1500,feeFloor:0,  feePct:0},
   sp:   {label:'S Pass',      short:'SP', levy:650, cpf:false, feeMode:'flat', feeFlat:1800,feeFloor:0,   feePct:0},
@@ -527,12 +527,13 @@ function renderGroups(){
         <input type="number" min="0" value="${g.grpFeeMode==='max'?g.grpFeeFloor:g.grpFeeFlat}" oninput="upG(${g.id},g.grpFeeMode==='max'?'grpFeeFloor':'grpFeeFlat',this.value)">
       </div>
     </div>
-    ${g.grpFeeMode==='max'?`<div class="fg"><label>% of disbursement</label>
+    ${g.grpFeeMode==='max'?`<div class="r2"><div class="fg"><label>% of disbursement</label>
       <input type="number" min="0" step="1" value="${g.grpFeePct}" oninput="upG(${g.id},'grpFeePct',this.value)">
-    </div>`:''}
+    </div></div>`:''}
     <div class="fg"><label>Fee label</label>
       <input value="${esc(g.grpFeeLabel||'Admin Fees')}" oninput="upG(${g.id},'grpFeeLabel',this.value)">
-    </div>`:''}
+    </div>
+    `:''}
     ${document.getElementById('chkRemarks')?.checked?`
     <div class="fg" style="margin-top:6px"><label>Remarks for statutory lines</label>
       <div style="display:grid;grid-template-columns:100px 1fr;gap:3px 8px;align-items:center;font-size:11.5px;margin-top:3px">
@@ -731,7 +732,7 @@ function buildRows(g,c){
   T('head','Gross Salary Breakdown',bGST?'Rate \n(Before GST)':'Rate',false,'');
   // gross rows — all salary components
   if(g.hourly){
-    T('item',`Hourly rate (${g.hoursPerMonth} hrs/mth)`,c.base,false,'',true);
+    T('item','Estimated Monthly Salary',c.base,false,g.hourlyRate>0&&g.hoursPerMonth>0?`Hourly: S$${g.hourlyRate.toFixed(2)} × ${g.hoursPerMonth} hrs/mth`:'Hourly rated',true);
   } else {
     g.grossRows.forEach(r=>{T('item',r.label,r.val,false,r.remark||'',true);});
   }
@@ -764,13 +765,20 @@ function buildRows(g,c){
     const dep=num($('pDep2')?.value)||1;
     const depIncFee=document.getElementById('depIncludeFee')?.checked!==false;
     const depBase=depIncFee?(c.disbPerPax+c.feePerPax):c.disbPerPax;
-    const depLabel=depIncFee?`Deposit: ${dep} month${dep>1?'s':''} (salary + admin fees)`:`Deposit: ${dep} month${dep>1?'s':''} salary disbursement`;
-    T('item',depLabel,depBase*dep,true,payRemarks.deposit||'',true);
+    const secBondTotal=(g.type==='wpprc'&&g.secBond)?(g.secBondAmount||5000):0;
+    // Deposit = (monthly base × months) + 1× security bond (bond collected once regardless of deposit months)
+    const depTotal = depBase*dep + secBondTotal;
+    // Build label
+    const baseDesc=depIncFee?'salary + admin fees':'salary';
+    const depLabel=secBondTotal>0
+      ?`Deposit: ${dep} month${dep>1?'s':''} (${baseDesc}) + Security Bond (one-time)`
+      :`Deposit: ${dep} month${dep>1?'s':''} (${baseDesc})`;
+    T('item',depLabel,depTotal,true,payRemarks.deposit||'',true);
   }
-  // security bond (WP PRC only)
+  // security bond (WP PRC) — admin fee as one-time line; bond amount flows into deposit
   if(g.type==='wpprc'&&g.secBond){
     T('item','One-time Security Bond Admin Fees',g.secBondFee||140,true,'');
-    T('item','Security Bond Coverage',g.secBondAmount||5000,true,'');
+    // Note: Security Bond Coverage amount is included in the deposit line below
   }
   // payment lines
   const wp=svcs.find(s=>/work pass application/i.test(s.name));
@@ -783,8 +791,10 @@ function buildRows(g,c){
     const bundle=$('chk1stIncludesAdminFee')?.checked;
     T('blank','','',false,'');
     if(bundle){
-      const first=wpVal+c.disbPerPax+c.feePerPax;
-      T('item','1st Payment: Work Pass Application Fees + 1 month admin fee + 1 month salary disbursement',first,true,payRemarks.first||'');
+      const effPax=(g.sameSalary&&g.pax>1)?g.pax:1;
+      const first=wpVal+(c.disbPerPax+c.feePerPax)*effPax;
+      const firstLabel='1st Payment: Work Pass Application Fees'+(effPax>1?' + '+effPax+' pax admin fee + '+effPax+' pax salary disbursement':' + 1 month admin fee + 1 month salary disbursement');
+      T('item',firstLabel,first,true,payRemarks.first||'');
       T('item',`Subsequent Payment: Salary Disbursement${fm!=='none'?' + Monthly Admin Fees':''}`+(note?`\n(${note})`:''),c.totalPerPax,true,payRemarks.subsequent||'',true);
     } else {
       T('item','1st Payment: Work Pass Application Fees',wpVal,true,payRemarks.first||'');
@@ -831,9 +841,9 @@ function recalc(){
       if(r.kind==='title'){const tCols=pax>1?(hasRemarks?5:4):(hasRemarks?3:2);return`<tr class="title"><td class="a" colspan="${tCols}">${esc(r.a)}</td></tr>`;}
       if(r.kind==='head'){
         if(pax>1){
-          return`<tr class="bordered sechead"><td class="a">${esc(r.a)}</td><td class="b">${esc(r.b||'')}</td><td class="p" style="text-align:right;font-size:11px;color:#5d6b7a">Pax</td><td class="t" style="text-align:right;font-size:11px">Total</td>${hasRemarks?'<td class="c">Remarks</td>':''}</tr>`;
+          return`<tr class="bordered sechead"><td class="a">${esc(r.a)}</td><td class="b">${esc(r.b||'')}</td><td class="p">Pax</td><td class="t">Total</td>${hasRemarks?'<td class="c">Remarks</td>':''}</tr>`;
         } else {
-          return`<tr class="bordered sechead"><td class="a">${esc(r.a)}</td><td class="b" colspan="${hasRemarks?1:2}" style="text-align:right">${esc(r.b||'')}</td>${hasRemarks?'<td class="c"></td>':''}</tr>`;
+          return`<tr class="bordered sechead"><td class="a">${esc(r.a)}</td><td class="b" colspan="${hasRemarks?1:2}">${esc(r.b||'')}</td>${hasRemarks?'<td class="c">Remarks</td>':''}</tr>`;
         }
       }
       const cls='bordered'+(r.bold?' bold':'');
@@ -865,11 +875,13 @@ function recalc(){
     const pm=$('selPay').value;
     const depM=num($('pDep')?.value||$('pDep2')?.value||0);
     const depIncFeeSum=document.getElementById('depIncludeFee')?.checked!==false||document.getElementById('depIncludeFeeSt')?.checked!==false;
-    const grandDeposit=depM>0?allCalcs.reduce((sum,{g,c})=>{
+    const grandDeposit=allCalcs.reduce((sum,{g,c})=>{
       const px=paxFmt(g,c);
+      if(depM<=0 && !(g.type==='wpprc'&&g.secBond)) return sum;
       const base=depIncFeeSum?(c.disbPerPax+c.feePerPax):c.disbPerPax;
-      return sum+base*depM*px;
-    },0):0;
+      const bond=(g.type==='wpprc'&&g.secBond)?(g.secBondAmount||5000)*px:0;
+      return sum+(base*depM*px)+bond;
+    },0);
     const grandDisb    = allCalcs.reduce((sum,{g,c})=> sum + c.disbPerPax  * paxFmt(g,c), 0);
     const grandFee     = allCalcs.reduce((sum,{g,c})=> sum + c.feePerPax   * paxFmt(g,c), 0);
     const totalPax     = allCalcs.reduce((sum,{g,c})=> sum + paxFmt(g,c), 0);
@@ -877,7 +889,15 @@ function recalc(){
     const summaryRows = allCalcs.map(({g,c},i)=>{
       const px = paxFmt(g,c);
       const grpTotal = c.totalPerPax * px;
-      const grpLabel = g.tabName.trim() || `${TYPES[g.type].label} (${TYPES[g.type].short})`;
+      const grpLabel = g.tabName.trim() || TYPES[g.type].label;
+      // one-time items for this group
+      const bond=(g.type==='wpprc'&&g.secBond)?(g.secBondAmount||5000)*px:0;
+      const bondFee=(g.type==='wpprc'&&g.secBond)?(g.secBondFee||140):0;
+      const wp2=svcs.find(s=>/work pass application/i.test(s.name));
+      const wpFee=wp2?wp2.rate:0;
+      const depBase2=depIncFeeSum?(c.disbPerPax+c.feePerPax):c.disbPerPax;
+      const grpDeposit=depM>0?depBase2*depM*px+bond:bond;
+      const hasOneTime=grpDeposit>0||wpFee>0||bondFee>0;
       return `<tr class="bordered">
         <td class="a">${esc(grpLabel)} <span style="font-size:10.5px;color:var(--text2)">(${px} pax)</span></td>
         <td class="b">${fmtS(c.totalPerPax)}</td>
@@ -885,6 +905,17 @@ function recalc(){
         <td class="t">${fmtS(grpTotal)}</td>
       </tr>`;
     }).join('');
+    // 1st collection breakdown
+    const grandFirstCollection = allCalcs.reduce((sum,{g,c})=>{
+      const px=paxFmt(g,c);
+      const bond2=(g.type==='wpprc'&&g.secBond)?(g.secBondAmount||5000)*px:0;
+      const bondFee2=(g.type==='wpprc'&&g.secBond)?(g.secBondFee||140):0;
+      const wp3=svcs.find(s=>/work pass application/i.test(s.name));
+      const wpFee2=wp3?wp3.rate:0;
+      const depBase3=depIncFeeSum?(c.disbPerPax+c.feePerPax):c.disbPerPax;
+      const dep=depM>0?depBase3*depM*px+bond2:bond2;
+      return sum + dep + wpFee2 + bondFee2 + c.totalPerPax*px;
+    },0);
 
     const sumHtml = `<div style="border-bottom:1px solid var(--border)">
       <div class="preview-tab">
@@ -915,10 +946,14 @@ function recalc(){
           <td class="t">${fmtS(grandDeposit)}</td>
         </tr>`:''}
         <tr class="bordered" style="background:#f2f5f9">
-          <td class="a" style="font-weight:700;color:var(--navy)">Grand total — monthly to collect</td>
-          <td class="b"></td><td class="p"></td>
+          <td class="a" style="font-weight:700;color:var(--navy)">Grand Total — Monthly to Collect</td>
+          <td class="b"></td><td class="p" style="font-weight:700;color:var(--navy)">${totalPax} pax</td>
           <td class="t" style="font-weight:800;color:var(--navy)">${fmtS(grandMonthly)}</td>
         </tr>
+        ${grandFirstCollection>grandMonthly?`
+        <tr><td colspan="4" style="padding:6px 8px;font-size:11px;color:var(--text2);border:none;font-style:italic">
+          * First collection estimate (monthly + deposit + one-time fees): <b style="color:var(--navy)">${fmtS(grandFirstCollection)}</b>
+        </td></tr>`:''}
       </table></div></div>
     </div>`;
     $('prvArea').innerHTML += sumHtml;
@@ -928,12 +963,13 @@ function recalc(){
 function tabLabel(g,i){
   if(g.tabName.trim())return g.tabName.trim();
   const cn=$('cName').value.trim();
-  // if multiple groups, distinguish by pass type
   const multi=groups.length>1;
-  if(cn) return multi?`${cn} (${TYPES[g.type].short})`:cn;
+  // With client name: "ABC Pte Ltd (Work Permit)" for multi, "ABC Pte Ltd" for single
+  if(cn) return multi?`${cn} (${TYPES[g.type].label})`:cn;
+  // No client name: use full pass type label
   const same=groups.filter(x=>x.type===g.type);
   const suffix=same.length>1?' '+(same.indexOf(g)+1):'';
-  return `${TYPES[g.type].short} Worker${suffix}`;
+  return `${TYPES[g.type].label}${suffix}`;
 }
 
 /* ── Excel export ── */
@@ -1113,11 +1149,13 @@ function exportPDF(){
     const totalPax     = allCalcs.reduce((sum,{g,c})=> sum + paxFmt(g,c), 0);
     const depM2        = num($('pDep')?.value||$('pDep2')?.value||0);
     const depIncF      = document.getElementById('depIncludeFee')?.checked!==false||document.getElementById('depIncludeFeeSt')?.checked!==false;
-    const grandDeposit = depM2>0?allCalcs.reduce((sum,{g,c})=>{
+    const grandDeposit = allCalcs.reduce((sum,{g,c})=>{
       const px=paxFmt(g,c);
+      if(depM2<=0 && !(g.type==='wpprc'&&g.secBond)) return sum;
       const base=depIncF?(c.disbPerPax+c.feePerPax):c.disbPerPax;
-      return sum+base*depM2*px;
-    },0):0;
+      const bond=(g.type==='wpprc'&&g.secBond)?(g.secBondAmount||5000)*px:0;
+      return sum+(base*depM2*px)+bond;
+    },0);
 
     // header
     const pdfEntity=$('entityName')?.value||'Elitez Group of Companies';
@@ -1140,7 +1178,7 @@ function exportPDF(){
     // group rows
     allCalcs.forEach(({g,c},i)=>{
       const px=paxFmt(g,c);
-      const grpLabel=g.tabName.trim()||(TYPES[g.type].label+' ('+TYPES[g.type].short+')');
+      const grpLabel=g.tabName.trim()||TYPES[g.type].label;
       sBody.push([
         {content:grpLabel+' — '+px+' pax',_k:'item'},
         {content:fmtS(c.totalPerPax),_k:'item',_n:1},
@@ -1261,7 +1299,7 @@ async function loadFromPDF(input){
   }
 }
 
-function parsePDFLines(lines){
+function parsePDFLines_OLD(lines){
   const out = {
     entityName:'', clientName:'', preparedBy:'', date:'',
     groups:[], feeMode:'none', feeFlat:0, feeFloor:295, feePct:10,
@@ -1309,7 +1347,17 @@ function parsePDFLines(lines){
   // Each group section: parse between pageStarts[n] and pageStarts[n+1]
   pageStarts.forEach((start,gi)=>{
     const end = pageStarts[gi+1] || lines.length;
-    const glines = lines.slice(start, end);
+    let rawLines = lines.slice(start, end);
+    // Trim off summary table content if it got absorbed into last group's section
+    const summaryIdx = rawLines.findIndex((l,i)=>
+      /^worker group$/i.test(l.trim()) &&
+      rawLines.slice(i).some(ll=>/grand total/i.test(ll))
+    );
+    const glines = summaryIdx > 5 ? rawLines.slice(0, summaryIdx) : rawLines;
+    // Skip if this entire section is a summary page
+    const isSummary = glines.length < 8 &&
+                      glines.some(l=>/^worker group$/i.test(l.trim()));
+    if(isSummary) return;
     const dt = TYPES['wp'];
     const g = {
       type:'wp', pax:1, sameSalary:true, tabName:'',
@@ -1427,41 +1475,262 @@ function parsePDFLines(lines){
   return {data:out, matched, total: matched.length};
 }
 
+function parsePDFLines(lines){
+  const out={entityName:'',clientName:'',preparedBy:'',date:'',
+    groups:[],feeMode:'none',feeFlat:0,feeFloor:295,feePct:10,
+    feeLump:0,feeLabel:'Admin Fees',payMode:'simple',depMonths:1,upMonths:1,
+    disclaimer:'',svcs:[]};
+  const matched=[];
+  const money=str=>{const m=str.replace(/,/g,'').match(/\$?([\d]+\.?\d*)/);return m?parseFloat(m[1]):null;};
+  const pct=str=>{const m=str.match(/([\d.]+)\s*%/);return m?parseFloat(m[1]):null;};
+
+  // ── Step 1: Extract header info from first few lines ──
+  // PDF header is: "EntityName\nClient: XXX\nDate: DD Mon YYYY"
+  // or: "EntityName Date: DD Mon YYYY" on same line (pdf.js merges them)
+  let headerDone=false;
+  for(let i=0;i<Math.min(15,lines.length);i++){
+    const l=lines[i].trim();
+    if(!l) continue;
+    // Split "EntityName Date: DD Mon YYYY" pattern
+    const dateSplit=l.match(/^(.+?)\s+(Date:\s*\d{1,2}\s+\w+\s+\d{4})$/);
+    if(dateSplit&&!headerDone){
+      out.entityName=dateSplit[1].trim();
+      out.date=dateSplit[2].replace('Date:','').trim();
+      matched.push('Entity name','Date');
+      headerDone=true; continue;
+    }
+    if(/^client[:\s]/i.test(l)){out.clientName=l.replace(/^client[:\s]*/i,'').trim();matched.push('Client name');continue;}
+    if(/^prepared by[:\s]/i.test(l)){out.preparedBy=l.replace(/^prepared by[:\s]*/i,'').trim();matched.push('Prepared by');continue;}
+    if(/^date[:\s]/i.test(l)&&!out.date){out.date=l.replace(/^date[:\s]*/i,'').trim();matched.push('Date');continue;}
+    // Entity name = first meaningful non-keyword line
+    if(!out.entityName&&!headerDone&&l.length>2&&!/^(gross|statutory|optional|monthly disbursement|total|work permit|s pass|ep worker|local worker|wp)/i.test(l)){
+      // Check it doesn't look like a date line
+      if(!/\d{1,2}\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i.test(l)){
+        out.entityName=l; matched.push('Entity name'); headerDone=true;
+      }
+    }
+    if(headerDone&&out.entityName&&out.date) break;
+  }
+
+  // ── Step 2: Find page boundaries = each "Monthly Disbursement Table" ──
+  const pageStarts=[];
+  lines.forEach((l,i)=>{if(/monthly disbursement table/i.test(l))pageStarts.push(i);});
+  if(!pageStarts.length)pageStarts.push(0);
+
+  // ── Step 3: Parse each group page ──
+  pageStarts.forEach((start,gi)=>{
+    const end=pageStarts[gi+1]||lines.length;
+    const glines=lines.slice(start,end);
+    const dt=TYPES['wp'];
+    const g={type:'wp',pax:1,sameSalary:true,tabName:'',
+      grossRows:[{id:Date.now()+gi*1000,label:'Monthly Remuneration',val:0,remark:''}],
+      awsMode:'none',awsAmt:0,awsMonths:1,awsLabel:'Annual Wage Supplement',
+      levy:dt.levy,medical:5.89,wica:1.5,
+      feeOverride:true,grpFeeMode:'flat',grpFeeFlat:0,grpFeeFloor:0,grpFeePct:0,grpFeeLabel:'Admin Fees',
+      hourly:false,hourlyRate:0,hoursPerMonth:0,secBond:false,secBondAmount:5000,secBondFee:140,
+      remarkLevy:'',remarkMedical:'',remarkCPF:'',remarkSDL:'',remarkWICA:'',remarkAWS:'',
+      cpfOverride:false,commission:0,sameSalary:true};
+
+    let inGross=false,inStat=false,inPay=false,inOpt=false,feeFound=false;
+    let grossRows=[],awsVal=null;
+
+    // Detect worker type from tab name line (appears right after "Monthly Disbursement Table")
+    for(let li=0;li<Math.min(5,glines.length);li++){
+      const l=glines[li].trim();
+      if(/work permit.*prc|prc.*work permit|wpprc/i.test(l)){g.type='wpprc';g.levy=TYPES.wpprc.levy;break;}
+      else if(/work permit/i.test(l)&&!/prc/i.test(l)){g.type='wp';g.levy=TYPES.wp.levy;break;}
+      else if(/s pass/i.test(l)){g.type='sp';g.levy=TYPES.sp.levy;break;}
+      else if(/employment pass|ep worker/i.test(l)){g.type='ep';g.levy=0;break;}
+      else if(/local worker/i.test(l)){g.type='local';g.levy=0;break;}
+    }
+
+    glines.forEach((line,li)=>{
+      const l=line.trim();
+      if(!l)return;
+      // Section markers
+      if(/^gross salary breakdown/i.test(l)){inGross=true;inStat=false;inPay=false;inOpt=false;return;}
+      if(/^statutory employer obligation/i.test(l)){inGross=false;inStat=true;inPay=false;inOpt=false;return;}
+      if(/^optional services/i.test(l)){inGross=false;inStat=false;inPay=false;inOpt=true;return;}
+      if(/^total salary disbursement per month/i.test(l)){inGross=false;inStat=false;inPay=true;return;}
+
+      // Pax count
+      const paxM=l.match(/(\d+)\s*pax/i);
+      if(paxM&&parseInt(paxM[1])>1){g.pax=parseInt(paxM[1]);g.sameSalary=true;matched.push('Group '+(gi+1)+': pax');}
+
+      if(inGross){
+        const vm=money(l);
+        if(vm===null)return;
+        if(/^monthly remuneration/i.test(l)&&!grossRows.find(r=>/monthly remuneration/i.test(r.label))){
+          grossRows.push({id:Date.now()+gi*1000+li,label:'Monthly Remuneration',val:vm,remark:''});
+          matched.push('Group '+(gi+1)+': Remuneration');
+        } else if(/^estimated monthly salary|^hourly rate/i.test(l)){
+          const hrsM=l.match(/(\d+)\s*hrs/i);
+          if(hrsM){g.hourly=true;g.hoursPerMonth=parseInt(hrsM[1]);}
+          // hourly rate = monthly salary / hours
+          if(g.hoursPerMonth>0) g.hourlyRate=Math.round(vm/g.hoursPerMonth*100)/100;
+          else grossRows.push({id:Date.now()+gi*1000+li,label:'Monthly Remuneration',val:vm,remark:''});
+          matched.push('Group '+(gi+1)+': Hourly');
+        } else if(/annual wage supplement|aws|performance bonus/i.test(l)){
+          awsVal=vm;
+          g.awsLabel=l.replace(/\$[\d,.]+.*/,'').trim()||'Annual Wage Supplement';
+          matched.push('Group '+(gi+1)+': Bonus');
+        } else if(/allowance/i.test(l)){
+          const lbl=l.replace(/\$[\d,.]+.*/,'').trim()||'Allowance';
+          grossRows.push({id:Date.now()+gi*1000+li+1,label:lbl,val:vm,remark:''});
+          matched.push('Group '+(gi+1)+': Allowance');
+        }
+      }
+      if(inStat){
+        const vm=money(l);
+        if(/^levy/i.test(l)&&vm!==null){g.levy=vm;matched.push('Group '+(gi+1)+': Levy');}
+        if(/^medical insurance/i.test(l)&&vm!==null){g.medical=vm;matched.push('Group '+(gi+1)+': Medical');}
+        if(/^work injury/i.test(l)){const pp=pct(l);if(pp){g.wica=pp;matched.push('Group '+(gi+1)+': WICA');}}
+        if(/^cpf.*employer/i.test(l)){g.type='local';matched.push('Group '+(gi+1)+': CPF→Local');}
+        if(/waived/i.test(l)){const prev=glines[li-1]||'';if(/medical/i.test(prev))g.remarkMedical='Waived off';}
+      }
+      if(inPay&&!feeFound){
+        const vm=money(l);
+        if(vm!==null&&/admin fees|service fees|management fee/i.test(l)){
+          feeFound=true;
+          g.grpFeeMode=/or.*%|whichever/i.test(l)?'max':'flat';
+          g.grpFeeFlat=vm;
+          if(g.grpFeeMode==='max'){const pp=pct(l);if(pp)g.grpFeePct=pp;}
+          g.grpFeeLabel=l.replace(/\$[\d,.]+.*/,'').replace(/\(.*\)/,'').trim()||'Admin Fees';
+          matched.push('Group '+(gi+1)+': Fee');
+        }
+        if(/deposit.*month/i.test(l)){const dm=l.match(/(\d+)\s*month/i);if(dm){out.depMonths=parseInt(dm[1]);out.payMode='deposit';}}
+        if(/1st payment|2nd payment/i.test(l))out.payMode='staged';
+        if(/security bond coverage/i.test(l)&&vm!==null){g.secBond=true;g.secBondAmount=vm;}
+        if(/security bond admin/i.test(l)&&vm!==null){g.secBond=true;g.secBondFee=vm;}
+      }
+      // Optional services — first page only, skip summary table rows
+      if(inOpt&&gi===0){
+        const vm=money(l);
+        if(vm!==null&&vm<2000){  // cap to avoid picking up summary totals
+          const name=l.replace(/\$[\d,.]+.*/,'').replace(/[\d]+\.\d+/g,'').trim();
+          if(name.length>3&&!out.svcs.find(s=>s.name.toLowerCase()===name.toLowerCase())
+             &&!/total|grand|pax|worker group|salary disbursement|admin fees|deposit/i.test(name)){
+            out.svcs.push({id:Date.now()+li*10+gi,name,rate:vm,remark:''});
+          }
+        }
+      }
+    });
+
+    if(grossRows.length>0)g.grossRows=grossRows.map((r,ri)=>({...r,id:Date.now()+gi*100+ri}));
+    if(awsVal!==null){g.awsMode='custom';g.awsAmt=awsVal;}
+    if(!feeFound)g.feeOverride=false;
+    out.groups.push(g);
+  });
+
+  // Disclaimer
+  const discLine=lines.slice().reverse().find(l=>/declared salary|subject to change|reserves the right/i.test(l));
+  if(discLine){out.disclaimer=discLine;matched.push('Disclaimer');}
+  if(!out.svcs.length){
+    out.svcs=[{id:1,name:'Work Pass Application',rate:600,remark:''},{id:2,name:'Work Pass Cancellation',rate:95,remark:''},{id:3,name:'Medical Check Up',rate:50,remark:''}];
+  }
+  return{data:out,matched,total:matched.length};
+}
+
 function applyParsed(result){
   const d = result.data;
   const pct = Math.round(result.matched.length/Math.max(result.total,1)*100);
 
-  // apply client details
+  // ── Client details ──
   if(d.entityName && d.entityName.length>2) $('entityName').value = d.entityName;
   if(d.clientName) $('cName').value = d.clientName;
   if(d.preparedBy) $('cBy').value = d.preparedBy;
   if(d.disclaimer) $('disclaimer').value = d.disclaimer;
-
-  // apply groups
-  if(d.groups.length>0){
-    groups = d.groups.map((g,i)=>({...g, id:++gid}));
+  if(d.date){
+    // Try to parse date string back to YYYY-MM-DD for the date input
+    try{
+      const dt = new Date(d.date);
+      if(!isNaN(dt)) $('cDate').value = dt.toISOString().slice(0,10);
+    }catch(e){}
   }
 
-  // apply fee settings
-  $('selFee').value = d.feeMode;
-  renderFeeFields();
-  if(d.feeMode==='flat' && $('fFlat')) $('fFlat').value = d.feeFlat||0;
-  if(d.feeMode==='max'){ if($('fFloor'))$('fFloor').value=d.feeFloor; if($('fPct'))$('fPct').value=d.feePct; }
-  if(d.feeMode==='lump' && $('fLump')) $('fLump').value = d.feeLump||0;
-  if($('feeLabel')) $('feeLabel').value = d.feeLabel||'Admin Fees';
+  // ── Groups — merge parsed data with default group structure to ensure all fields present ──
+  if(d.groups.length>0){
+    const defType = 'wp';
+    const defTd = TYPES[defType];
+    groups = d.groups.map((pg,i)=>{
+      const td = TYPES[pg.type]||TYPES['wp'];
+      return {
+        id: ++gid,
+        type: pg.type||'wp',
+        tabName: pg.tabName||'',
+        pax: pg.pax||1,
+        sameSalary: pg.sameSalary!==false,
+        grossRows: (pg.grossRows&&pg.grossRows.length>0)
+          ? pg.grossRows.map((r,ri)=>({id:Date.now()+i*100+ri, label:r.label||'Monthly Remuneration', val:r.val||0, remark:r.remark||''}))
+          : [{id:Date.now()+i*100, label:'Monthly Remuneration', val:0, remark:''}],
+        awsMode: pg.awsMode||'none',
+        awsAmt: pg.awsAmt||0,
+        awsMonths: pg.awsMonths||1,
+        awsLabel: pg.awsLabel||'Annual Wage Supplement',
+        levy: pg.levy!==undefined ? pg.levy : td.levy,
+        medical: pg.medical||5.89,
+        wica: pg.wica||1.5,
+        hourly: pg.hourly||false,
+        hourlyRate: pg.hourlyRate||0,
+        hoursPerMonth: pg.hoursPerMonth||0,
+        secBond: pg.secBond||false,
+        secBondAmount: pg.secBondAmount||5000,
+        secBondFee: pg.secBondFee||140,
+        feeOverride: pg.feeOverride||false,
+        grpFeeMode: pg.grpFeeMode||td.feeMode,
+        grpFeeFlat: pg.grpFeeFlat!==undefined ? pg.grpFeeFlat : td.feeFlat,
+        grpFeeFloor: pg.grpFeeFloor!==undefined ? pg.grpFeeFloor : td.feeFloor,
+        grpFeePct: pg.grpFeePct!==undefined ? pg.grpFeePct : td.feePct,
+        grpFeeLabel: pg.grpFeeLabel||'Admin Fees',
+        remarkLevy: pg.remarkLevy||'',
+        remarkMedical: pg.remarkMedical||'',
+        remarkCPF: pg.remarkCPF||'',
+        remarkSDL: pg.remarkSDL||'',
+        remarkWICA: pg.remarkWICA||'',
+        remarkAWS: pg.remarkAWS||'',
+        cpfOverride: false,
+        commission: pg.commission||0,
+      };
+    });
+  }
 
-  // apply payment mode
-  $('selPay').value = d.payMode;
+  // ── Fee settings ──
+  // If any group has its own fee override, uncheck "same fee for all"
+  const anyOverride = d.groups.some(g=>g.feeOverride);
+  const chkSame = $('chkSameFee');
+  if(chkSame) chkSame.checked = !anyOverride;
+  if(!anyOverride){
+    $('selFee').value = d.feeMode||'none';
+    renderFeeFields();
+    if(d.feeMode==='flat' && $('fFlat')) $('fFlat').value = d.feeFlat||0;
+    if(d.feeMode==='max'){ if($('fFloor'))$('fFloor').value=d.feeFloor||295; if($('fPct'))$('fPct').value=d.feePct||10; }
+    if(d.feeMode==='lump' && $('fLump')) $('fLump').value = d.feeLump||0;
+    if($('feeLabel')) $('feeLabel').value = d.feeLabel||'Admin Fees';
+  } else {
+    $('selFee').value = 'none';
+    renderFeeFields();
+  }
+
+  // ── Payment mode ──
+  const pm = d.payMode||'simple';
+  $('selPay').value = pm;
   renderPayFields();
-  if(d.payMode==='staged'){
+  if(pm==='staged'){
     if($('pDep')) $('pDep').value = d.depMonths||1;
     if($('pUp')) $('pUp').value = d.upMonths||1;
+  } else if(pm==='deposit'){
+    if($('pDep2')) $('pDep2').value = d.depMonths||1;
   }
 
-  // apply optional services
-  svcs = d.svcs; sid = svcs.reduce((m,s)=>Math.max(m,s.id),sid)+1;
+  // ── Optional services ──
+  svcs = d.svcs&&d.svcs.length>0 ? d.svcs : [
+    {id:1,name:'Work Pass Application',rate:600,remark:''},
+    {id:2,name:'Work Pass Cancellation',rate:95,remark:''},
+    {id:3,name:'Medical Check Up',rate:50,remark:''}
+  ];
+  sid = svcs.reduce((m,s)=>Math.max(m,s.id),sid)+1;
 
-  renderGroups(); renderSvcs(); recalc();
+  renderGroups(); renderFeeFields(); renderPayRemarks(); renderSvcs(); recalc();
 
   // build result summary
   const mList = result.matched.slice(0,12).map(m=>`<li>${m}</li>`).join('');
