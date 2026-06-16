@@ -1661,8 +1661,9 @@ function applyParsed(result){
     }catch(e){}
   }
 
-  // ── Groups — merge parsed data with default group structure to ensure all fields present ──
+  // ── Groups — reset first, then map parsed data ──
   if(d.groups.length>0){
+    groups = []; gid = 0; // clear existing groups before loading
     const defType = 'wp';
     const defTd = TYPES[defType];
     groups = d.groups.map((pg,i)=>{
