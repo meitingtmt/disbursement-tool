@@ -1514,8 +1514,42 @@ function parsePDFLines(lines){
 
   // ── Step 2: Find page boundaries = each "Monthly Disbursement Table" ──
   const pageStarts=[];
-  lines.forEach((l,i)=>{if(/monthly disbursement table/i.test(l))pageStarts.push(i);});
+  // Each page in the PDF starts with one of:
+  // 1. "Monthly Disbursement Table" (title row - from tab label)
+  // 2. A worker type line right after the entity/date header
+  // Strategy: find lines that look like a worker type heading (standalone, short, matches known types)
+  // OR "Monthly Disbursement Table" text
+  const workerTypePattern=/^(work permit|wp worker|loc worker|s pass|sp worker|ep worker|employment pass|local worker|wpprc worker|wp.?prc|work permit.?prc)/i;
+  const entityPattern = out.entityName ? new RegExp('^'+out.entityName.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'i') : null;
+
+  lines.forEach((l,i)=>{
+    const lt=l.trim();
+    if(!lt) return;
+    // Method 1: explicit title row
+    if(/monthly disbursement table/i.test(lt)){pageStarts.push(i);return;}
+    // Method 2: worker type heading (short line matching known pass types)
+    if(lt.length<40 && workerTypePattern.test(lt) && i>0){
+      // Make sure it's a standalone label line, not mid-table content
+      const prev=lines[i-1]?.trim()||'';
+      const isAfterHeader=entityPattern?entityPattern.test(prev):/date:/i.test(prev)||prev.length<50;
+      if(isAfterHeader) pageStarts.push(i);
+      return;
+    }
+    // Method 3: repeated entity name line = new page starting
+    if(entityPattern && entityPattern.test(lt) && i>5 && pageStarts.length>0){
+      // Next non-empty line after this should be a worker type
+      const nextMeaningful=lines.slice(i+1,i+4).find(x=>x.trim().length>2);
+      if(nextMeaningful && (workerTypePattern.test(nextMeaningful.trim())||/disbursement table/i.test(nextMeaningful))){
+        pageStarts.push(i);
+      }
+    }
+  });
+
+  // Deduplicate and sort
+  const uniqueStarts=[...new Set(pageStarts)].sort((a,b)=>a-b);
+  pageStarts.length=0; uniqueStarts.forEach(s=>pageStarts.push(s));
   if(!pageStarts.length)pageStarts.push(0);
+  console.log('PDF pages detected:', pageStarts.length, 'at lines:', pageStarts);
 
   // ── Step 3: Parse each group page ──
   pageStarts.forEach((start,gi)=>{
@@ -1534,15 +1568,18 @@ function parsePDFLines(lines){
     let inGross=false,inStat=false,inPay=false,inOpt=false,feeFound=false;
     let grossRows=[],awsVal=null;
 
-    // Detect worker type from tab name line (appears right after "Monthly Disbursement Table")
-    for(let li=0;li<Math.min(5,glines.length);li++){
+    // Detect worker type from first few lines of this page section
+    for(let li=0;li<Math.min(8,glines.length);li++){
       const l=glines[li].trim();
-      if(/work permit.*prc|prc.*work permit|wpprc/i.test(l)){g.type='wpprc';g.levy=TYPES.wpprc.levy;break;}
-      else if(/work permit/i.test(l)&&!/prc/i.test(l)){g.type='wp';g.levy=TYPES.wp.levy;break;}
-      else if(/s pass/i.test(l)){g.type='sp';g.levy=TYPES.sp.levy;break;}
+      if(!l||l.length>60) continue; // skip long lines, only check short heading-like lines
+      if(/work permit.*prc|prc.*work permit|wpprc|wp.*prc/i.test(l)){g.type='wpprc';g.levy=TYPES.wpprc.levy;break;}
+      else if(/work permit|wp worker/i.test(l)&&!/prc/i.test(l)){g.type='wp';g.levy=TYPES.wp.levy;break;}
+      else if(/s pass|sp worker/i.test(l)){g.type='sp';g.levy=TYPES.sp.levy;break;}
       else if(/employment pass|ep worker/i.test(l)){g.type='ep';g.levy=0;break;}
-      else if(/local worker/i.test(l)){g.type='local';g.levy=0;break;}
+      else if(/local worker|loc worker/i.test(l)){g.type='local';g.levy=0;break;}
     }
+    // Set levy default based on detected type
+    if(g.type==='local'||g.type==='ep') g.levy=0;
 
     glines.forEach((line,li)=>{
       const l=line.trim();
