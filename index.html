@@ -1271,25 +1271,32 @@ async function loadFromPDF(input){
     if(typeof pdfjsLib === 'undefined') throw new Error('PDF.js not loaded yet. Please try again in a moment.');
     const pdf = await pdfjsLib.getDocument({data: ab}).promise;
 
-    // extract all text items with their positions
+    // Extract text per page, grouping items by Y position
     let allLines = [];
     for(let p=1; p<=pdf.numPages; p++){
       const page = await pdf.getPage(p);
       const tc = await page.getTextContent();
-      // group items into lines by y-position
+      // Use a tolerance bucket to group text items on the same line
+      // PDF Y coordinates: higher Y = higher on page (bottom-left origin)
+      // Round to 3pt buckets to handle slight Y variations within the same line
       const byY = {};
       tc.items.forEach(item => {
         if(!item.str.trim()) return;
-        const y = Math.round(item.transform[5]);
-        if(!byY[y]) byY[y]=[];
+        const y = Math.round(item.transform[5] / 3) * 3;
+        if(!byY[y]) byY[y] = [];
         byY[y].push({x: item.transform[4], str: item.str.trim()});
       });
-      // sort lines top-to-bottom, within line left-to-right
-      Object.keys(byY).sort((a,b)=>b-a).forEach(y=>{
-        const parts = byY[y].sort((a,b)=>a.x-b.x).map(i=>i.str);
-        allLines.push(parts.join(' '));
+      // Sort descending (higher Y = top of page in PDF coords)
+      const sortedYs = Object.keys(byY).map(Number).sort((a,b) => b-a);
+      sortedYs.forEach(y => {
+        const parts = byY[y].sort((a,b) => a.x - b.x).map(i => i.str);
+        const line = parts.join(' ').trim();
+        if(line) allLines.push(line);
       });
     }
+    console.log('Extracted', allLines.length, 'lines from', pdf.numPages, 'pages');
+    // Log first 30 lines to help debug if needed
+    allLines.slice(0, 30).forEach((l,i) => console.log('  line', i, ':', JSON.stringify(l)));
 
     const mapped = parsePDFLines(allLines);
     applyParsed(mapped);
@@ -1526,6 +1533,8 @@ function parsePDFLines(lines){
 
   if(!pageStarts.length)pageStarts.push(0);
   console.log('PDF pages detected:', pageStarts.length, 'starting at lines:', pageStarts);
+  console.log('Sample boundaries:');
+  pageStarts.forEach((s,i)=>console.log('  Page',i+1,': line',s,'=',JSON.stringify(lines[s]),'| next:',JSON.stringify(lines[s+1])));
 
   // ── Step 3: Parse each group page ──
   pageStarts.forEach((start,gi)=>{
@@ -1566,9 +1575,11 @@ function parsePDFLines(lines){
       if(/^optional services/i.test(l)){inGross=false;inStat=false;inPay=false;inOpt=true;return;}
       if(/^total salary disbursement per month/i.test(l)){inGross=false;inStat=false;inPay=true;return;}
 
-      // Pax count
-      const paxM=l.match(/(\d+)\s*pax/i);
-      if(paxM&&parseInt(paxM[1])>1){g.pax=parseInt(paxM[1]);g.sameSalary=true;matched.push('Group '+(gi+1)+': pax');}
+      // Pax count — only from header line like "5 pax · per pax: $X", not from summary rows
+      const paxM=l.match(/^(\d+)\s*pax/i); // must be at START of line (tab header format)
+      if(paxM&&parseInt(paxM[1])>1){
+        g.pax=parseInt(paxM[1]);g.sameSalary=true;matched.push('Group '+(gi+1)+': pax');
+      }
 
       if(inGross){
         const vm=money(l);
