@@ -15,18 +15,19 @@
 :root{
   --navy:#0B2440;--navy2:#153960;--navy3:#1D4A7A;
   --orange:#E8820A;--orange-light:#FDF0E0;--orange-mid:#F5C680;
-  --bg:#EFF1F5;--surface:#FFFFFF;--surface2:#F7F8FA;
-  --border:#DDE3EC;--border2:#C5CDD8;
-  --text:#1A2533;--text2:#5A6878;--text3:#8A97A6;
+  --bg:#E8ECF2;--surface:#FFFFFF;--surface2:#F5F7FA;
+  --border:#D8E0EB;--border2:#C0CBD8;
+  --text:#141E2B;--text2:#52626F;--text3:#8494A3;
   --red:#C03030;--green:#1A6B42;
-  --radius:8px;--radius-sm:6px;
-  --shadow-card:0 1px 3px rgba(11,36,64,.06),0 1px 2px rgba(11,36,64,.04);
-  --shadow-topbar:0 1px 0 rgba(255,255,255,.06),0 2px 12px rgba(11,36,64,.3);
+  --radius:10px;--radius-sm:7px;
+  --shadow-card:0 1px 4px rgba(11,36,64,.08),0 2px 8px rgba(11,36,64,.05);
+  --shadow-topbar:0 1px 0 rgba(255,255,255,.06),0 3px 16px rgba(11,36,64,.35);
+  --shadow-float:0 4px 20px rgba(11,36,64,.12),0 1px 4px rgba(11,36,64,.08);
 }
 body{font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;background:var(--bg);color:var(--text);font-size:13px;line-height:1.55;-webkit-font-smoothing:antialiased;min-height:100vh}
 
 /* ── topbar ── */
-.topbar{background:var(--navy);color:#fff;padding:0 24px;height:52px;display:flex;align-items:center;gap:16px;position:sticky;top:0;z-index:100;box-shadow:var(--shadow-topbar)}
+.topbar{background:var(--navy);color:#fff;padding:0 28px;height:56px;display:flex;align-items:center;gap:16px;position:sticky;top:0;z-index:100;box-shadow:var(--shadow-topbar)}
 .topbar-wordmark{display:flex;align-items:center;gap:0;font-size:15px;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:#fff}
 .topbar-wordmark .t-orange{color:var(--orange)}
 .topbar-divider{width:1px;height:20px;background:rgba(255,255,255,.15);margin:0 14px}
@@ -45,12 +46,12 @@ body{font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;background:
 
 /* ── main layout ── */
 .main{display:grid;grid-template-columns:456px 1fr;min-height:calc(100vh - 52px);align-items:start}
-.form-col{background:var(--bg);padding:18px 20px;border-right:1px solid var(--border)}
-.preview-col{background:#E8EBF0;padding:18px 20px}
-.preview-inner{background:var(--surface);border-radius:var(--radius);border:1px solid var(--border);overflow:hidden;position:sticky;top:70px;box-shadow:var(--shadow-card)}
-.preview-tab{background:var(--navy2);color:#fff;padding:8px 16px;font-size:11.5px;font-weight:600;display:flex;justify-content:space-between;align-items:center;letter-spacing:.1px}
+.form-col{background:var(--bg);padding:20px 22px;border-right:1px solid var(--border)}
+.preview-col{background:#E2E7EF;padding:20px 22px}
+.preview-inner{background:var(--surface);border-radius:var(--radius);border:1px solid var(--border);overflow:hidden;position:sticky;top:70px;box-shadow:var(--shadow-float);display:flex;flex-direction:column;max-height:calc(100vh - 92px)}
+.preview-tab{background:var(--navy2);color:#fff;padding:10px 18px;font-size:11.5px;font-weight:600;display:flex;justify-content:space-between;align-items:center;letter-spacing:.15px;flex-shrink:0}
 .preview-tab-stat{color:#A8C8E8;font-size:11px;font-weight:400;font-variant-numeric:tabular-nums}
-.preview-body{padding:22px 26px;overflow-x:auto}
+.preview-body{padding:22px 26px;overflow-x:auto;overflow-y:auto;flex:1;min-height:0}
 .preview-empty{padding:64px 30px;text-align:center;color:var(--text2)}
 .preview-empty-icon{margin-bottom:14px;opacity:.3}
 .preview-empty-title{font-size:14px;font-weight:600;color:var(--text);margin-bottom:5px;letter-spacing:-.1px}
@@ -58,13 +59,13 @@ body{font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;background:
 @media(max-width:1100px){.main{grid-template-columns:1fr}.form-col{border-right:none;border-bottom:1px solid var(--border)}.preview-inner{position:static}}
 
 /* ── cards ── */
-.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:12px;box-shadow:var(--shadow-card)}
-.card-title{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--navy);margin-bottom:13px;padding-bottom:9px;border-bottom:2px solid var(--orange);display:inline-block}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;margin-bottom:14px;box-shadow:var(--shadow-card);transition:box-shadow .2s}
+.card-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;color:var(--navy);margin-bottom:14px;padding-bottom:8px;border-bottom:2.5px solid var(--orange);display:inline-block}
 
 /* ── form fields ── */
 .fg{margin-bottom:10px}
 .fg:last-child{margin-bottom:0}
-.fg label{display:block;font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px;letter-spacing:.1px}
+.fg label{display:block;font-size:11px;font-weight:600;color:var(--text2);margin-bottom:5px;letter-spacing:.15px}
 .fg label .opt{font-weight:400;color:var(--text3);font-size:10.5px}
 input,input[type=text],input[type=number],input[type=date],select,textarea{width:100%;padding:7px 10px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font:inherit;font-size:12.5px;background:var(--surface);color:var(--text);transition:border-color .12s,box-shadow .12s;-webkit-appearance:none}
 input:focus,input[type=text]:focus,input[type=number]:focus,input[type=date]:focus,select:focus,textarea:focus{outline:none;border-color:var(--orange);box-shadow:0 0 0 3px rgba(232,130,10,.1)}
@@ -79,7 +80,7 @@ textarea{resize:vertical;line-height:1.5}
 .btn{padding:6px 12px;border-radius:var(--radius-sm);border:1.5px solid var(--border);background:var(--surface);font:inherit;font-size:12px;font-weight:600;cursor:pointer;color:var(--text);transition:all .12s;display:inline-flex;align-items:center;gap:5px}
 .btn:hover{border-color:var(--navy3);color:var(--navy)}
 .btn.sm{padding:4px 10px;font-size:11px}
-.btn.add{border-style:dashed;border-color:var(--navy3);color:var(--navy3);background:transparent}
+.btn.add{border-style:dashed;border-color:var(--navy3);color:var(--navy3);background:transparent;font-weight:600}
 .btn.add:hover{background:#EEF3F8;border-style:solid}
 .btn.dn{color:var(--red);border-color:#F5DCDC;background:#FDF6F6}
 .btn.dn:hover{background:#FAE8E8;border-color:var(--red)}
@@ -92,8 +93,8 @@ textarea{resize:vertical;line-height:1.5}
 .hint{font-size:10.5px;color:var(--text3);margin-top:4px;line-height:1.5}
 
 /* ── worker group ── */
-.grp{border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:10px;overflow:hidden;background:var(--surface);box-shadow:var(--shadow-card)}
-.grp-hdr{display:flex;align-items:center;gap:10px;padding:9px 12px;background:var(--surface2);border-bottom:1px solid var(--border)}
+.grp{border:1px solid var(--border);border-radius:var(--radius);margin-bottom:12px;overflow:hidden;background:var(--surface);box-shadow:var(--shadow-card);transition:box-shadow .2s}
+.grp-hdr{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--surface2);border-bottom:1px solid var(--border)}
 .grp-bar{width:3px;height:24px;border-radius:2px;flex-shrink:0}
 .grp-bar.wp{background:var(--orange)}.grp-bar.sp{background:#0E7B6C}
 .grp-bar.ep{background:var(--navy2)}.grp-bar.local{background:var(--green)}
@@ -104,7 +105,7 @@ textarea{resize:vertical;line-height:1.5}
 .pass-badge.sp{background:#E6F4F1;color:#0A5248;border:1px solid #A0D4CC}
 .pass-badge.ep{background:#E8EEF6;color:#153960;border:1px solid #A8C0D8}
 .pass-badge.local{background:#E6F4EC;color:#145230;border:1px solid #A0D0B0}
-.grp-body{padding:13px}
+.grp-body{padding:14px 16px}
 .mini-sec{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text3);margin:13px 0 8px;padding-bottom:5px;border-bottom:1px solid var(--border)}
 .auto-val{font-variant-numeric:tabular-nums;font-size:12.5px;background:var(--surface2);border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:7px 10px;color:var(--text2)}
 
@@ -126,7 +127,7 @@ textarea{resize:vertical;line-height:1.5}
 .disc-area:focus{outline:none;border-color:var(--orange);box-shadow:0 0 0 3px rgba(232,130,10,.1)}
 
 /* ── guide box ── */
-.guide-box{background:linear-gradient(135deg,#EEF3F8 0%,#E8EDF4 100%);border:1px solid #D0DAE8;border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:12px;font-size:11.5px;color:var(--text2);line-height:1.7}
+.guide-box{background:linear-gradient(135deg,#EEF4FB 0%,#E6EDF8 100%);border:1px solid #C8D8EB;border-radius:var(--radius-sm);padding:11px 13px;margin-bottom:12px;font-size:11.5px;color:var(--text2);line-height:1.7}
 .guide-box strong{color:var(--navy);font-weight:700}
 
 /* ── preview table ── */
@@ -146,13 +147,13 @@ textarea{resize:vertical;line-height:1.5}
 
 /* ── welcome overlay ── */
 .welcome{position:fixed;inset:0;background:rgba(11,36,64,.75);z-index:500;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
-.welcome-box{background:var(--surface);border-radius:14px;padding:36px 40px;max-width:480px;width:90%;box-shadow:0 20px 60px rgba(11,36,64,.28);text-align:center}
+.welcome-box{background:var(--surface);border-radius:18px;padding:40px 44px;max-width:480px;width:90%;box-shadow:0 24px 72px rgba(11,36,64,.32);text-align:center}
 .welcome-wm{font-size:18px;font-weight:800;letter-spacing:2.5px;text-transform:uppercase;color:var(--navy);margin-bottom:16px}
 .welcome-wm .t-orange{color:var(--orange)}
 .welcome-h{font-size:19px;font-weight:700;color:var(--navy);margin-bottom:6px;letter-spacing:-.2px}
 .welcome-p{font-size:13px;color:var(--text2);margin-bottom:26px;line-height:1.65}
 .welcome-opts{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.welcome-opt{border:1.5px solid var(--border);border-radius:10px;padding:18px 16px;cursor:pointer;transition:all .18s;text-align:left}
+.welcome-opt{border:1.5px solid var(--border);border-radius:12px;padding:20px 18px;cursor:pointer;transition:all .2s;text-align:left}
 .welcome-opt:hover{border-color:var(--orange);background:var(--orange-light);transform:translateY(-2px);box-shadow:0 6px 20px rgba(232,130,10,.12)}
 .wo-icon{width:36px;height:36px;border-radius:8px;background:var(--surface2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;margin-bottom:10px}
 .wo-h{font-size:13.5px;font-weight:700;color:var(--navy);margin-bottom:3px;letter-spacing:-.1px}
@@ -163,11 +164,72 @@ textarea{resize:vertical;line-height:1.5}
 .modal-bg.show{display:flex}
 .modal-box{background:var(--surface);border-radius:10px;padding:24px 28px;max-width:460px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,.18)}
 .modal-h{font-size:15px;font-weight:700;color:var(--navy);margin-bottom:10px;letter-spacing:-.1px}
+
+/* ── password gate ── */
+.lock-overlay{position:fixed;inset:0;background:var(--navy);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px}
+.lock-box{background:#fff;border-radius:16px;padding:44px 40px;max-width:400px;width:100%;box-shadow:0 24px 64px rgba(0,0,0,.3);text-align:center}
+.lock-wm{font-size:18px;font-weight:800;letter-spacing:2.5px;text-transform:uppercase;color:var(--navy);margin-bottom:24px}
+.lock-wm .t{color:var(--orange)}
+.lock-icon{width:52px;height:52px;background:var(--orange-light);border-radius:12px;display:flex;align-items:center;justify-content:center;margin:0 auto 18px}
+.lock-h{font-size:18px;font-weight:700;color:var(--navy);margin-bottom:6px}
+.lock-p{font-size:13px;color:var(--text2);margin-bottom:24px;line-height:1.6}
+.lock-input{width:100%;padding:11px 14px;border:1.5px solid var(--border);border-radius:8px;font:inherit;font-size:14px;text-align:center;letter-spacing:2px;margin-bottom:12px;transition:border-color .15s}
+.lock-input:focus{outline:none;border-color:var(--orange);box-shadow:0 0 0 3px rgba(232,130,10,.1)}
+.lock-btn{width:100%;padding:11px;background:var(--orange);color:#fff;border:none;border-radius:8px;font:inherit;font-size:14px;font-weight:700;cursor:pointer;transition:background .15s}
+.lock-btn:hover{background:#D0740A}
+.lock-error{font-size:12px;color:var(--red);margin-top:8px;min-height:18px}
+.lock-hint{font-size:11px;color:var(--text3);margin-top:16px}
 </style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 
 <!-- ── TOPBAR ── -->
+<div id="lockOverlay" class="lock-overlay">
+  <div class="lock-box">
+    <div class="lock-wm">ELI<span class="t">T</span>EZ</div>
+
+    <!-- Step 1: Email -->
+    <div id="stepEmail">
+      <div class="lock-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#E8820A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/>
+        </svg>
+      </div>
+      <div class="lock-h">Staff Access</div>
+      <div class="lock-p">Enter your Elitez Group email address.<br>We'll send you a one-time verification code.</div>
+      <input class="lock-input" id="emailInput" type="email" placeholder="you@elitez.asia"
+        onkeydown="if(event.key==='Enter')sendOTP()">
+      <button class="lock-btn" id="sendBtn" onclick="sendOTP()">Send Verification Code</button>
+      <div class="lock-error" id="emailError"></div>
+      <div class="lock-hint">Authorised domains: elitez.asia · elitez.com.sg · dhc.com.sg · altez.com.sg · joie.com.sg · heyrocket.com</div>
+    </div>
+
+    <!-- Step 2: OTP -->
+    <div id="stepOTP" style="display:none">
+      <div class="lock-icon" style="background:#E8F4ED">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#1A6B42" stroke-width="2" stroke-linecap="round">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+        </svg>
+      </div>
+      <div class="lock-h">Check your email</div>
+      <div class="lock-p" id="otpSentMsg">A 6-digit code has been sent to your email.</div>
+      <input class="lock-input" id="otpInput" type="text" inputmode="numeric" maxlength="6"
+        placeholder="Enter 6-digit code" onkeydown="if(event.key==='Enter')verifyOTP()"
+        style="letter-spacing:6px;font-size:20px;font-weight:700">
+      <button class="lock-btn" id="verifyBtn" onclick="verifyOTP()">Verify & Access Tool</button>
+      <div class="lock-error" id="otpError"></div>
+      <div style="margin-top:12px">
+        <button onclick="resetToEmail()" style="background:none;border:none;color:var(--text3);font-size:11.5px;cursor:pointer;text-decoration:underline">
+          ← Use a different email
+        </button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div id="appContent" style="display:none">
 <div class="topbar">
   <div class="topbar-wordmark">ELI<span class="t-orange">T</span>EZ</div>
   <div class="topbar-divider"></div>
@@ -973,13 +1035,24 @@ function recalc(){
       const elitezPax = c.totalPerPax; // disb + fee
 
       // ── Hidden cost benchmarks (auto, per pax) ──
-      const training    = salary * 0.05;                          // 5% of salary
-      const attrition   = (salary * 0.5) / 12;                   // 50% salary / 12 months avg tenure
-      const hrAdmin     = 80;                                     // flat $80/pax/mth
-      const officeEquip = 380;                                    // flat $380/pax/mth
-      const leaveCost   = (salary/26) * (28/12);                  // 14AL+14SL days
-      const superSal    = salary * 1.6;                           // supervisor ~60% more than worker
-      const superCost   = superSal * 0.15;                        // 15% of supervisor time
+      // Training: 1.5 months salary amortised over 12 = 12.5% — covers initial training,
+      //   safety briefings, senior staff shadowing time, learning curve mistakes
+      const training    = salary * 0.125;
+      // Attrition: 1× monthly salary as re-hire cost ÷ 12 (avg tenure) — covers vacancy gap,
+      //   re-advertising, re-vetting, re-training replacement
+      const attrition   = salary / 12;
+      // HR admin: $100/pax/mth — payroll processing, leave mgmt, MOM submissions, IR21 etc.
+      const hrAdmin     = 100;
+      // Operational overhead per headcount: tools, PPE/uniform, utilities, equipment
+      //   WP/WP(PRC): factory/worksite ~$200; SP/EP/Local: professional environment ~$500
+      const officeEquip = ['wp','wpprc'].includes(g.type) ? 200 : 500;
+      // Leave: 14AL + 14SL days per year → monthly salary cost
+      const leaveCost   = (salary/26) * (28/12);
+      // Supervisory: 20% of supervisor time SHARED across all pax in this group
+      //   Supervisor estimated at 1.6× worker salary
+      const superSal    = salary * 1.6;
+      const superCostTotal = superSal * 0.20;          // 20% of supervisor time for whole group
+      const superCost   = superCostTotal / Math.max(1, px); // shared across headcount
       const hiddenTotal = training + attrition + hrAdmin + officeEquip + leaveCost + superCost;
       const directPax   = disbPax + hiddenTotal;
       const savingPax   = directPax - elitezPax;
@@ -998,8 +1071,10 @@ function recalc(){
     // Totals
     const grandDirect = allCalcs2.reduce((s,{g,c})=>{
       const px=paxFmt2(g); const salary=c.grossTotal;
-      const hidden = salary*0.05 + (salary*0.5)/12 + 80 + 380 + (salary/26)*(28/12) + (salary*1.6)*0.15;
-      return s+(c.disbPerPax+hidden)*px;
+      const office=['wp','wpprc'].includes(g.type)?200:500;
+      const superShared=(salary*1.6)*0.20; // shared across pax
+      const hiddenPerPax=salary*0.125 + salary/12 + 100 + office + (salary/26)*(28/12) + superShared/Math.max(1,px);
+      return s+(c.disbPerPax+hiddenPerPax)*px;
     },0);
     const grandElitez = allCalcs2.reduce((s,{g,c})=>s+c.totalPerPax*paxFmt2(g),0);
     const grandSaving = grandDirect - grandElitez;
@@ -1008,13 +1083,16 @@ function recalc(){
     // Hidden cost breakdown legend
     const sampleSalary = allCalcs2[0]?.c.grossTotal || 0;
     const s = sampleSalary;
+    const samplePax = allCalcs2[0] ? paxFmt2(allCalcs2[0].g) : 1;
+    const sampleType = allCalcs2[0]?.g.type || 'wp';
+    const sampleOffice = ['wp','wpprc'].includes(sampleType) ? 200 : 500;
     const legendRows = [
-      ['Training & onboarding', 'S$'+(s*0.05).toFixed(0)+'/mth', '5% of salary — initial training amortised over 12 months'],
-      ['Attrition / re-hire risk', 'S$'+((s*0.5)/12).toFixed(0)+'/mth', '50% of salary as re-hire cost ÷ 12 (avg 12-month tenure)'],
-      ['HR & payroll admin', 'S$80/mth', '2 hrs × $40/hr HR executive per headcount monthly'],
-      ['Office space & equipment', 'S$380/mth', 'Avg workstation rent + utilities + equipment amortised'],
-      ['Leave liability', 'S$'+(s/26*28/12).toFixed(0)+'/mth', '14 AL + 14 SL days × daily salary rate ÷ 12'],
-      ['Supervisory overhead', 'S$'+((s*1.6)*0.15).toFixed(0)+'/mth', '15% of supervisor time (supervisor est. 60% above worker salary)'],
+      ['Training & onboarding', 'S$'+(s*0.125).toFixed(0)+'/mth', '12.5% of salary — 1.5 months onboarding cost amortised over 12 months. Covers training, safety briefings, senior staff shadowing time.'],
+      ['Attrition / re-hire risk', 'S$'+(s/12).toFixed(0)+'/mth', '1× monthly salary as re-hire cost ÷ 12 (avg tenure). Covers vacancy gap, re-advertising, re-vetting, re-training replacement.'],
+      ['HR & payroll admin', 'S$100/pax/mth', 'Per headcount: payroll processing, leave management, MOM submissions, IR21 etc.'],
+      ['Operational overhead per headcount', 'S$'+sampleOffice+'/pax/mth', sampleOffice===200?'Factory/worksite — includes tools, PPE, uniform, utilities, and equipment amortised per worker.':'Professional environment — includes workstation, laptop/equipment, utilities, and consumables per headcount.'],
+      ['Leave liability', 'S$'+(s/26*28/12).toFixed(0)+'/mth', '14 AL + 14 SL days entitlement × daily salary rate ÷ 12 months.'],
+      ['Supervisory overhead', 'S$'+((s*1.6)*0.20/Math.max(1,samplePax)).toFixed(0)+'/pax/mth', '20% of supervisor time (est. 1.6× worker salary), shared across '+samplePax+' pax in group. One supervisor covers the whole team.'],
     ];
 
     const compHtml = `
@@ -1934,6 +2012,114 @@ function showModal(html){
 }
 
 
+
+// ── Supabase OTP Auth ──
+const SUPABASE_URL = 'https://tuxrwmreiplqlhspkopp.supabase.co';
+const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR1eHJ3bXJlaXBscWxoc3Brb3BwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDgyNDE4OTUsImV4cCI6MjA2MzgxNzg5NX0.RsrVHGMKUUQFGTMmDmDNyhEBmFm3DpJJr7Ktr1c4ZLY';
+const APPROVED_DOMAINS = ['elitez.asia', 'elitez.com.sg', 'dhc.com.sg', 'altez.com.sg', 'joie.com.sg', 'heyrocket.com'];
+const SESSION_KEY = 'elitez_disb_auth';
+
+let _sb = null;
+function getSB(){
+  if(!_sb) _sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+  return _sb;
+}
+
+function unlockApp(){
+  document.getElementById('lockOverlay').style.display='none';
+  document.getElementById('appContent').style.display='';
+}
+
+function resetToEmail(){
+  document.getElementById('stepEmail').style.display='';
+  document.getElementById('stepOTP').style.display='none';
+  document.getElementById('emailInput').value='';
+  document.getElementById('emailError').textContent='';
+  document.getElementById('otpError').textContent='';
+}
+
+async function sendOTP(){
+  const email = document.getElementById('emailInput').value.trim().toLowerCase();
+  const err = document.getElementById('emailError');
+  const btn = document.getElementById('sendBtn');
+  err.textContent='';
+
+  if(!email){ err.textContent='Please enter your email address.'; return; }
+  const domain = email.split('@')[1];
+  if(!domain || !APPROVED_DOMAINS.includes(domain)){
+    err.textContent='Access is restricted to authorised Elitez Group email domains only.';
+    return;
+  }
+
+  btn.textContent='Sending...'; btn.disabled=true;
+  try{
+    const { error } = await getSB().auth.signInWithOtp({
+      email,
+      options:{ shouldCreateUser: false }
+    });
+    if(error){
+      // If user doesn't exist in Supabase, allow anyway — just verify domain
+      // Some Supabase configs require shouldCreateUser:true
+      const { error: err2 } = await getSB().auth.signInWithOtp({ email });
+      if(err2) throw err2;
+    }
+    document.getElementById('otpSentMsg').textContent = `A 6-digit code has been sent to ${email}`;
+    document.getElementById('stepEmail').style.display='none';
+    document.getElementById('stepOTP').style.display='';
+    setTimeout(()=>document.getElementById('otpInput').focus(), 100);
+  } catch(e){
+    err.textContent = 'Failed to send code. Please try again or contact your HR manager.';
+    console.error(e);
+  } finally{
+    btn.textContent='Send Verification Code'; btn.disabled=false;
+  }
+}
+
+async function verifyOTP(){
+  const email = document.getElementById('emailInput').value.trim().toLowerCase();
+  const otp = document.getElementById('otpInput').value.trim();
+  const err = document.getElementById('otpError');
+  const btn = document.getElementById('verifyBtn');
+  err.textContent='';
+
+  if(otp.length !== 6){ err.textContent='Please enter the full 6-digit code.'; return; }
+
+  btn.textContent='Verifying...'; btn.disabled=true;
+  try{
+    const { data, error } = await getSB().auth.verifyOtp({
+      email, token: otp, type: 'email'
+    });
+    if(error) throw error;
+    sessionStorage.setItem(SESSION_KEY, '1');
+    unlockApp();
+  } catch(e){
+    err.textContent = 'Invalid or expired code. Please check and try again.';
+    document.getElementById('otpInput').value='';
+    document.getElementById('otpInput').focus();
+    console.error(e);
+  } finally{
+    btn.textContent='Verify & Access Tool'; btn.disabled=false;
+  }
+}
+
+// Check existing session on load
+(async()=>{
+  if(sessionStorage.getItem(SESSION_KEY)==='1'){
+    unlockApp(); return;
+  }
+  // Check if Supabase session still active
+  try{
+    const { data } = await getSB().auth.getSession();
+    if(data?.session){
+      const domain = data.session.user?.email?.split('@')[1];
+      if(domain && APPROVED_DOMAINS.includes(domain)){
+        sessionStorage.setItem(SESSION_KEY,'1');
+        unlockApp();
+      }
+    }
+  } catch(e){ /* no session, show lock */ }
+})();
 </script>
+</div>
 </body>
 </html>
