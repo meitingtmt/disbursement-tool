@@ -182,7 +182,7 @@ textarea{resize:vertical;line-height:1.5}
       <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="2" y="1" width="10" height="12" rx="1.5"/><path d="M4 4h6M4 7h6M4 10h4"/></svg>
       PDF
     </button>
-    <button class="tbtn primary" onclick="exportExcel()">
+    <button class="tbtn primary" id="xlsBtn" onclick="exportExcelSafe()">
       <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 1H3a1 1 0 00-1 1v10a1 1 0 001 1h8a1 1 0 001-1V6L8 1z"/><path d="M8 1v5h5M5 8l4 4M9 8l-4 4"/></svg>
       Download Excel
     </button>
@@ -958,6 +958,123 @@ function recalc(){
     </div>`;
     $('prvArea').innerHTML += sumHtml;
   }
+
+  // ── Cost Comparison: Direct Hire vs Via Elitez ──
+  if(groups.length > 0){
+    const allCalcs2 = groups.map(g=>({g, c:calcGroup(g)}));
+    const paxFmt2 = (g) => (g.sameSalary&&g.pax>1)?g.pax:1;
+    const totalPax2 = allCalcs2.reduce((s,{g})=>s+paxFmt2(g),0);
+
+    // Per-group comparison rows
+    const compRows = allCalcs2.map(({g,c},i)=>{
+      const px = paxFmt2(g);
+      const salary = c.grossTotal;
+      const disbPax = c.disbPerPax;
+      const elitezPax = c.totalPerPax; // disb + fee
+
+      // ── Hidden cost benchmarks (auto, per pax) ──
+      const training    = salary * 0.05;                          // 5% of salary
+      const attrition   = (salary * 0.5) / 12;                   // 50% salary / 12 months avg tenure
+      const hrAdmin     = 80;                                     // flat $80/pax/mth
+      const officeEquip = 380;                                    // flat $380/pax/mth
+      const leaveCost   = (salary/26) * (28/12);                  // 14AL+14SL days
+      const superSal    = salary * 1.6;                           // supervisor ~60% more than worker
+      const superCost   = superSal * 0.15;                        // 15% of supervisor time
+      const hiddenTotal = training + attrition + hrAdmin + officeEquip + leaveCost + superCost;
+      const directPax   = disbPax + hiddenTotal;
+      const savingPax   = directPax - elitezPax;
+      const savingPct   = directPax>0 ? (savingPax/directPax*100) : 0;
+      const grpLabel    = g.tabName.trim() || TYPES[g.type].label;
+
+      return `
+      <tr style="border-top:1px solid #EEF0F4">
+        <td style="padding:8px 12px;font-size:12px;font-weight:600;color:var(--navy)">${esc(grpLabel)} <span style="font-size:10.5px;font-weight:400;color:var(--text2)">(${px} pax)</span></td>
+        <td style="padding:8px 12px;text-align:right;font-variant-numeric:tabular-nums;font-size:12px;color:var(--red);font-weight:600">${fmtS(directPax*px)}</td>
+        <td style="padding:8px 12px;text-align:right;font-variant-numeric:tabular-nums;font-size:12px;color:#1A6B42;font-weight:600">${fmtS(elitezPax*px)}</td>
+        <td style="padding:8px 12px;text-align:right;font-variant-numeric:tabular-nums;font-size:12px;font-weight:700;color:var(--navy)">${fmtS(savingPax*px)}<br><span style="font-size:10px;font-weight:500;color:#5A6878">${savingPct.toFixed(1)}% less</span></td>
+      </tr>`;
+    }).join('');
+
+    // Totals
+    const grandDirect = allCalcs2.reduce((s,{g,c})=>{
+      const px=paxFmt2(g); const salary=c.grossTotal;
+      const hidden = salary*0.05 + (salary*0.5)/12 + 80 + 380 + (salary/26)*(28/12) + (salary*1.6)*0.15;
+      return s+(c.disbPerPax+hidden)*px;
+    },0);
+    const grandElitez = allCalcs2.reduce((s,{g,c})=>s+c.totalPerPax*paxFmt2(g),0);
+    const grandSaving = grandDirect - grandElitez;
+    const grandPct = grandDirect>0 ? (grandSaving/grandDirect*100) : 0;
+
+    // Hidden cost breakdown legend
+    const sampleSalary = allCalcs2[0]?.c.grossTotal || 0;
+    const s = sampleSalary;
+    const legendRows = [
+      ['Training & onboarding', 'S$'+(s*0.05).toFixed(0)+'/mth', '5% of salary — initial training amortised over 12 months'],
+      ['Attrition / re-hire risk', 'S$'+((s*0.5)/12).toFixed(0)+'/mth', '50% of salary as re-hire cost ÷ 12 (avg 12-month tenure)'],
+      ['HR & payroll admin', 'S$80/mth', '2 hrs × $40/hr HR executive per headcount monthly'],
+      ['Office space & equipment', 'S$380/mth', 'Avg workstation rent + utilities + equipment amortised'],
+      ['Leave liability', 'S$'+(s/26*28/12).toFixed(0)+'/mth', '14 AL + 14 SL days × daily salary rate ÷ 12'],
+      ['Supervisory overhead', 'S$'+((s*1.6)*0.15).toFixed(0)+'/mth', '15% of supervisor time (supervisor est. 60% above worker salary)'],
+    ];
+
+    const compHtml = `
+    <div style="border-top:1px solid var(--border);margin-top:4px">
+      <div class="preview-tab" style="background:#153960">
+        <span>Cost Comparison — Direct Hire vs Via Elitez</span>
+        <span class="preview-tab-stat">${totalPax2} pax · You save ${fmtS(grandSaving)}/mth</span>
+      </div>
+      <div class="preview-body">
+        <div style="margin-bottom:14px">
+          <p style="font-size:12px;color:var(--text2);margin-bottom:10px;line-height:1.6">
+            Based on industry benchmarks, hiring directly carries hidden costs beyond salary and statutory obligations. 
+            This estimate shows the full economic case for engaging Elitez.
+          </p>
+          <table style="width:100%;border-collapse:collapse">
+            <thead>
+              <tr style="background:#F2F5F9">
+                <th style="padding:7px 12px;text-align:left;font-size:10.5px;font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:.5px">Worker group</th>
+                <th style="padding:7px 12px;text-align:right;font-size:10.5px;font-weight:700;color:#C03030;text-transform:uppercase;letter-spacing:.5px">Direct hire / mth</th>
+                <th style="padding:7px 12px;text-align:right;font-size:10.5px;font-weight:700;color:#1A6B42;text-transform:uppercase;letter-spacing:.5px">Via Elitez / mth</th>
+                <th style="padding:7px 12px;text-align:right;font-size:10.5px;font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:.5px">Saving</th>
+              </tr>
+            </thead>
+            <tbody>${compRows}</tbody>
+            ${allCalcs2.length>1?`<tr style="background:#F2F5F9;border-top:2px solid var(--border)">
+              <td style="padding:9px 12px;font-size:13px;font-weight:700;color:var(--navy)">Grand total</td>
+              <td style="padding:9px 12px;text-align:right;font-size:13px;font-weight:700;color:#C03030;font-variant-numeric:tabular-nums">${fmtS(grandDirect)}</td>
+              <td style="padding:9px 12px;text-align:right;font-size:13px;font-weight:700;color:#1A6B42;font-variant-numeric:tabular-nums">${fmtS(grandElitez)}</td>
+              <td style="padding:9px 12px;text-align:right;font-size:13px;font-weight:700;color:var(--navy);font-variant-numeric:tabular-nums">${fmtS(grandSaving)}<br><span style="font-size:10.5px;font-weight:500;color:#5A6878">${grandPct.toFixed(1)}% less</span></td>
+            </tr>`:''}
+          </table>
+        </div>
+
+        <div style="margin-bottom:14px">
+          <div style="font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text3);margin-bottom:8px">How hidden costs are estimated</div>
+          <table style="width:100%;border-collapse:collapse;font-size:11.5px">
+            ${legendRows.map(([label,val,note])=>`
+            <tr style="border-top:1px solid #F0F2F5">
+              <td style="padding:5px 10px;font-weight:600;color:var(--text);width:36%">${label}</td>
+              <td style="padding:5px 10px;color:var(--orange);font-weight:700;font-variant-numeric:tabular-nums;width:20%">${val}</td>
+              <td style="padding:5px 10px;color:var(--text2);font-size:11px">${note}</td>
+            </tr>`).join('')}
+          </table>
+        </div>
+
+        <div style="background:linear-gradient(135deg,#0B2440 0%,#153960 100%);border-radius:8px;padding:14px 18px;display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <div style="font-size:11px;color:rgba(255,255,255,.7);font-weight:600;margin-bottom:3px">Estimated annual saving per employee with Elitez</div>
+            <div style="font-size:20px;font-weight:800;color:#fff;font-variant-numeric:tabular-nums">${fmtS((grandSaving/totalPax2)*12)} / year</div>
+          </div>
+          <div style="background:var(--orange);color:#fff;font-size:12px;font-weight:700;padding:6px 14px;border-radius:20px">${grandPct.toFixed(1)}% lower cost</div>
+        </div>
+
+        <div style="font-size:10px;color:var(--text3);margin-top:10px;line-height:1.6;font-style:italic">
+          Note: Hidden cost figures are industry benchmark estimates for illustrative purposes. Actual costs vary by company, industry, and headcount. Statutory figures are per MOM rates.
+        </div>
+      </div>
+    </div>`;
+    $('prvArea').innerHTML += compHtml;
+  }
 }
 
 function tabLabel(g,i){
@@ -975,6 +1092,8 @@ function tabLabel(g,i){
 /* ── Excel export ── */
 async function exportExcel(){
   if(!groups.length){alert('Add at least one worker group first.');return;}
+  if(typeof ExcelJS==='undefined'){alert('Excel library is still loading. Please wait a moment and try again.');return;}
+  try{
   const wb=new ExcelJS.Workbook();
   const thin={style:'thin',color:{argb:'FF000000'}};
   const border={top:thin,bottom:thin,left:thin,right:thin};
@@ -1054,6 +1173,10 @@ async function exportExcel(){
 
   const buf=await wb.xlsx.writeBuffer();
   dl(new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),fn('xlsx'));
+  }catch(err){
+    console.error('Excel export error:',err);
+    alert('Excel export failed: '+err.message);
+  }
 }
 
 /* ── PDF export ── */
@@ -1224,6 +1347,19 @@ function exportPDF(){
   }
 }
 
+function exportExcelSafe(){
+  const btn=document.getElementById('xlsBtn');
+  if(btn){btn.textContent='Generating...';btn.disabled=true;}
+  setTimeout(async()=>{
+    await exportExcel();
+    if(btn){
+      setTimeout(()=>{
+        btn.disabled=false;
+        btn.innerHTML='<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 1H3a1 1 0 00-1 1v10a1 1 0 001 1h8a1 1 0 001-1V6L8 1z"/><path d="M8 1v5h5M5 8l4 4M9 8l-4 4"/></svg> Download Excel';
+      },500);
+    }
+  },50);
+}
 function exportPDFSafe(){
   const btn=document.getElementById('pdfBtn');
   if(btn){btn.textContent='Generating...';btn.disabled=true;}
@@ -1495,17 +1631,23 @@ function parsePDFLines(lines){
   // PDF header is: "EntityName\nClient: XXX\nDate: DD Mon YYYY"
   // or: "EntityName Date: DD Mon YYYY" on same line (pdf.js merges them)
   let headerDone=false;
-  // Header is on first 3 lines: entity name, date, worker type
+  // Header parsing: handle both "EntityName\nDate: X" and "EntityName Date: X" on one line
   for(let i=0;i<Math.min(6,lines.length);i++){
     const l=lines[i].trim();
     if(!l) continue;
+    // Handle merged "EntityName Date: DD Mon YYYY" on one line
+    const mergedDate=l.match(/^(.+?)\s+Date:\s*(\d{1,2}\s+\w+\s+\d{4})$/i);
+    if(mergedDate&&!out.entityName){
+      out.entityName=mergedDate[1].trim();
+      out.date=mergedDate[2].trim();
+      matched.push('Entity name','Date'); continue;
+    }
     if(/^date[:\s]/i.test(l)&&!out.date){
       out.date=l.replace(/^date[:\s]*/i,'').trim();
       matched.push('Date'); continue;
     }
     if(/^client[:\s]/i.test(l)){out.clientName=l.replace(/^client[:\s]*/i,'').trim();matched.push('Client name');continue;}
     if(/^prepared by[:\s]/i.test(l)){out.preparedBy=l.replace(/^prepared by[:\s]*/i,'').trim();matched.push('Prepared by');continue;}
-    // Entity name = first short line with no $ or keywords
     if(!out.entityName&&l.length>2&&l.length<80&&!l.includes('$')&&
        !/^(gross|statutory|optional|monthly disbursement|total|work permit|s pass|ep worker|local worker|wp|date|client|prepared)/i.test(l)){
       out.entityName=l; matched.push('Entity name'); continue;
@@ -1524,7 +1666,7 @@ function parsePDFLines(lines){
     if(!lt||i>=lines.length-1) return;
     const next=lines[i+1]?.trim()||'';
     // Primary: short line with no $ or :, followed by Date: = entity name = page start
-    if(lt.length>2&&lt.length<80&&!lt.includes('$')&&!lt.includes(':')){
+    if(lt.length>=1&&lt.length<80&&!lt.includes('$')&&!lt.includes(':')){
       if(/^date:/i.test(next)){pageStarts.push(i);return;}
     }
     // Fallback: "Monthly Disbursement Table" for backwards compatibility
@@ -1575,10 +1717,18 @@ function parsePDFLines(lines){
       if(/^optional services/i.test(l)){inGross=false;inStat=false;inPay=false;inOpt=true;return;}
       if(/^total salary disbursement per month/i.test(l)){inGross=false;inStat=false;inPay=true;return;}
 
-      // Pax count — only from header line like "5 pax · per pax: $X", not from summary rows
-      const paxM=l.match(/^(\d+)\s*pax/i); // must be at START of line (tab header format)
-      if(paxM&&parseInt(paxM[1])>1){
-        g.pax=parseInt(paxM[1]);g.sameSalary=true;matched.push('Group '+(gi+1)+': pax');
+      // Security bond lines can appear anywhere in the group
+      if(/security bond admin/i.test(l)){const vm=money(l);if(vm!==null){g.secBond=true;g.secBondFee=vm;matched.push('Group '+(gi+1)+': Bond fee');}}
+      if(/security bond coverage/i.test(l)){const vm=money(l);if(vm!==null){g.secBond=true;g.secBondAmount=vm;matched.push('Group '+(gi+1)+': Bond amt');}}
+      // Pax detection: only in gross/stat sections, extract N from "$rate N $total"
+      if((inGross||inStat||inPay)&&!g._paxSet){
+        const paxInline=l.match(/\$([\d,]+\.?\d*)\s+(\d+)\s+\$([\d,]+\.?\d*)/);
+        if(paxInline){
+          const rate=parseFloat(paxInline[1].replace(/,/g,''));
+          const n=parseInt(paxInline[2]);
+          const total=parseFloat(paxInline[3].replace(/,/g,''));
+          if(n>1&&Math.abs(rate*n-total)<1){g.pax=n;g.sameSalary=true;g._paxSet=true;matched.push('Group '+(gi+1)+': pax='+n);}
+        }
       }
 
       if(inGross){
@@ -1619,13 +1769,14 @@ function parsePDFLines(lines){
           g.grpFeeMode=/or.*%|whichever/i.test(l)?'max':'flat';
           g.grpFeeFlat=vm;
           if(g.grpFeeMode==='max'){const pp=pct(l);if(pp)g.grpFeePct=pp;}
-          g.grpFeeLabel=l.replace(/\$[\d,.]+.*/,'').replace(/\(.*\)/,'').trim()||'Admin Fees';
+          g.grpFeeLabel=l.replace(/\$[\d,.]+(\s+\d+\s+\$[\d,.]+)?/g,'').replace(/\(.*\)/,'').trim()||'Admin Fees';
           matched.push('Group '+(gi+1)+': Fee');
         }
         if(/deposit.*month/i.test(l)){const dm=l.match(/(\d+)\s*month/i);if(dm){out.depMonths=parseInt(dm[1]);out.payMode='deposit';}}
         if(/1st payment|2nd payment/i.test(l))out.payMode='staged';
         if(/security bond coverage/i.test(l)&&vm!==null){g.secBond=true;g.secBondAmount=vm;}
         if(/security bond admin/i.test(l)&&vm!==null){g.secBond=true;g.secBondFee=vm;}
+        if(/security bond coverage/i.test(l)&&vm!==null){g.secBond=true;g.secBondAmount=vm;}
       }
       // Optional services — first page only, skip summary table rows
       if(inOpt&&gi===0){
