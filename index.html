@@ -43,6 +43,9 @@ body{font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;background:
 .tbtn.outline:hover{background:rgba(232,130,10,.08);border-color:var(--orange)}
 .tbtn.primary{background:var(--orange);border-color:var(--orange);color:#fff;box-shadow:0 1px 4px rgba(232,130,10,.35)}
 .tbtn.primary:hover{background:#D0740A;box-shadow:0 2px 8px rgba(232,130,10,.4)}
+.tbtn.why-better{background:#1A6B42;border-color:#1A6B42;color:#fff}
+.tbtn.why-better:hover{background:#155A37;box-shadow:0 2px 8px rgba(26,107,66,.4)}
+.tbtn.why-better.active{background:#0E4429;border-color:#0E4429}
 
 /* ── main layout ── */
 .main{display:grid;grid-template-columns:456px 1fr;min-height:calc(100vh - 52px);align-items:start}
@@ -203,6 +206,10 @@ textarea{resize:vertical;line-height:1.5}
       <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 1H3a1 1 0 00-1 1v10a1 1 0 001 1h8a1 1 0 001-1V6L8 1z"/><path d="M8 1v5h5M5 8l4 4M9 8l-4 4"/></svg>
       Download Excel
     </button>
+    <button class="tbtn why-better" onclick="toggleComparison()" id="whyBetterBtn">
+      <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="7" cy="7" r="6"/><path d="M7 9.5v-1c0-.8.5-1.2 1-1.5.5-.3 1-.8 1-1.5a2 2 0 10-4 0"/><circle cx="7" cy="11" r=".1" fill="currentColor"/></svg>
+      Why are we better?
+    </button>
   </div>
 </div>
 
@@ -225,6 +232,13 @@ textarea{resize:vertical;line-height:1.5}
         <input type="file" id="pdfUploadWelcome" accept=".pdf" style="display:none" onchange="loadFromPDFWelcome(this)">
       </div>
     </div>
+  </div>
+</div>
+
+<!-- ── COMPARISON MODAL ── -->
+<div class="modal-bg" id="compareModal" onclick="if(event.target===this)this.classList.remove('show')" style="z-index:500">
+  <div class="modal-box" style="max-width:880px;width:94%;max-height:88vh;overflow-y:auto;padding:0">
+    <div id="compareModalBody"></div>
   </div>
 </div>
 
@@ -982,138 +996,128 @@ function recalc(){
     $('prvArea').innerHTML += sumHtml;
   }
 
-  // ── Cost Comparison: Direct Hire vs Via Elitez ──
-  if(groups.length > 0){
-    const allCalcs2 = groups.map(g=>({g, c:calcGroup(g)}));
-    const paxFmt2 = (g) => (g.sameSalary&&g.pax>1)?g.pax:1;
-    const totalPax2 = allCalcs2.reduce((s,{g})=>s+paxFmt2(g),0);
-
-    // Per-group comparison rows
-    const compRows = allCalcs2.map(({g,c},i)=>{
-      const px = paxFmt2(g);
-      const salary = c.grossTotal;
-      const disbPax = c.disbPerPax;
-      const elitezPax = c.totalPerPax; // disb + fee
-
-      // ── Hidden cost benchmarks (auto, per pax) ──
-      // Training: 1.5 months salary amortised over 12 = 12.5% — covers initial training,
-      //   safety briefings, senior staff shadowing time, learning curve mistakes
-      const training    = salary * 0.125;
-      // Attrition: 1× monthly salary as re-hire cost ÷ 12 (avg tenure) — covers vacancy gap,
-      //   re-advertising, re-vetting, re-training replacement
-      const attrition   = salary / 12;
-      // HR admin: $100/pax/mth — payroll processing, leave mgmt, MOM submissions, IR21 etc.
-      const hrAdmin     = 100;
-      // Operational overhead per headcount: tools, PPE/uniform, utilities, equipment
-      //   WP/WP(PRC): factory/worksite ~$200; SP/EP/Local: professional environment ~$500
-      const officeEquip = ['wp','wpprc'].includes(g.type) ? 200 : 500;
-      // Leave: 14AL + 14SL days per year → monthly salary cost
-      const leaveCost   = (salary/26) * (28/12);
-      // Supervisory: 20% of supervisor time SHARED across all pax in this group
-      //   Supervisor estimated at 1.6× worker salary
-      const superSal    = salary * 1.6;
-      const superCostTotal = superSal * 0.20;          // 20% of supervisor time for whole group
-      const superCost   = superCostTotal / Math.max(1, px); // shared across headcount
-      const hiddenTotal = training + attrition + hrAdmin + officeEquip + leaveCost + superCost;
-      const directPax   = disbPax + hiddenTotal;
-      const savingPax   = directPax - elitezPax;
-      const savingPct   = directPax>0 ? (savingPax/directPax*100) : 0;
-      const grpLabel    = g.tabName.trim() || TYPES[g.type].label;
-
-      return `
-      <tr style="border-top:1px solid #EEF0F4">
-        <td style="padding:8px 12px;font-size:12px;font-weight:600;color:var(--navy)">${esc(grpLabel)} <span style="font-size:10.5px;font-weight:400;color:var(--text2)">(${px} pax)</span></td>
-        <td style="padding:8px 12px;text-align:right;font-variant-numeric:tabular-nums;font-size:12px;color:var(--red);font-weight:600">${fmtS(directPax*px)}</td>
-        <td style="padding:8px 12px;text-align:right;font-variant-numeric:tabular-nums;font-size:12px;color:#1A6B42;font-weight:600">${fmtS(elitezPax*px)}</td>
-        <td style="padding:8px 12px;text-align:right;font-variant-numeric:tabular-nums;font-size:12px;font-weight:700;color:var(--navy)">${fmtS(savingPax*px)}<br><span style="font-size:10px;font-weight:500;color:#5A6878">${savingPct.toFixed(1)}% less</span></td>
-      </tr>`;
-    }).join('');
-
-    // Totals
-    const grandDirect = allCalcs2.reduce((s,{g,c})=>{
-      const px=paxFmt2(g); const salary=c.grossTotal;
-      const office=['wp','wpprc'].includes(g.type)?200:500;
-      const superShared=(salary*1.6)*0.20; // shared across pax
-      const hiddenPerPax=salary*0.125 + salary/12 + 100 + office + (salary/26)*(28/12) + superShared/Math.max(1,px);
-      return s+(c.disbPerPax+hiddenPerPax)*px;
-    },0);
-    const grandElitez = allCalcs2.reduce((s,{g,c})=>s+c.totalPerPax*paxFmt2(g),0);
-    const grandSaving = grandDirect - grandElitez;
-    const grandPct = grandDirect>0 ? (grandSaving/grandDirect*100) : 0;
-
-    // Hidden cost breakdown legend
-    const sampleSalary = allCalcs2[0]?.c.grossTotal || 0;
-    const s = sampleSalary;
-    const samplePax = allCalcs2[0] ? paxFmt2(allCalcs2[0].g) : 1;
-    const sampleType = allCalcs2[0]?.g.type || 'wp';
-    const sampleOffice = ['wp','wpprc'].includes(sampleType) ? 200 : 500;
-    const legendRows = [
-      ['Training & onboarding', 'S$'+(s*0.125).toFixed(0)+'/mth', '12.5% of salary — 1.5 months onboarding cost amortised over 12 months. Covers training, safety briefings, senior staff shadowing time.'],
-      ['Attrition / re-hire risk', 'S$'+(s/12).toFixed(0)+'/mth', '1× monthly salary as re-hire cost ÷ 12 (avg tenure). Covers vacancy gap, re-advertising, re-vetting, re-training replacement.'],
-      ['HR & payroll admin', 'S$100/pax/mth', 'Per headcount: payroll processing, leave management, MOM submissions, IR21 etc.'],
-      ['Operational overhead per headcount', 'S$'+sampleOffice+'/pax/mth', sampleOffice===200?'Factory/worksite — includes tools, PPE, uniform, utilities, and equipment amortised per worker.':'Professional environment — includes workstation, laptop/equipment, utilities, and consumables per headcount.'],
-      ['Leave liability', 'S$'+(s/26*28/12).toFixed(0)+'/mth', '14 AL + 14 SL days entitlement × daily salary rate ÷ 12 months.'],
-      ['Supervisory overhead', 'S$'+((s*1.6)*0.20/Math.max(1,samplePax)).toFixed(0)+'/pax/mth', '20% of supervisor time (est. 1.6× worker salary), shared across '+samplePax+' pax in group. One supervisor covers the whole team.'],
-    ];
-
-    const compHtml = `
-    <div style="border-top:1px solid var(--border);margin-top:4px">
-      <div class="preview-tab" style="background:#153960">
-        <span>Cost Comparison — Direct Hire vs Via Elitez</span>
-        <span class="preview-tab-stat">${totalPax2} pax · You save ${fmtS(grandSaving)}/mth</span>
-      </div>
-      <div class="preview-body">
-        <div style="margin-bottom:14px">
-          <p style="font-size:12px;color:var(--text2);margin-bottom:10px;line-height:1.6">
-            Based on industry benchmarks, hiring directly carries hidden costs beyond salary and statutory obligations. 
-            This estimate shows the full economic case for engaging Elitez.
-          </p>
-          <table style="width:100%;border-collapse:collapse">
-            <thead>
-              <tr style="background:#F2F5F9">
-                <th style="padding:7px 12px;text-align:left;font-size:10.5px;font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:.5px">Worker group</th>
-                <th style="padding:7px 12px;text-align:right;font-size:10.5px;font-weight:700;color:#C03030;text-transform:uppercase;letter-spacing:.5px">Direct hire / mth</th>
-                <th style="padding:7px 12px;text-align:right;font-size:10.5px;font-weight:700;color:#1A6B42;text-transform:uppercase;letter-spacing:.5px">Via Elitez / mth</th>
-                <th style="padding:7px 12px;text-align:right;font-size:10.5px;font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:.5px">Saving</th>
-              </tr>
-            </thead>
-            <tbody>${compRows}</tbody>
-            ${allCalcs2.length>1?`<tr style="background:#F2F5F9;border-top:2px solid var(--border)">
-              <td style="padding:9px 12px;font-size:13px;font-weight:700;color:var(--navy)">Grand total</td>
-              <td style="padding:9px 12px;text-align:right;font-size:13px;font-weight:700;color:#C03030;font-variant-numeric:tabular-nums">${fmtS(grandDirect)}</td>
-              <td style="padding:9px 12px;text-align:right;font-size:13px;font-weight:700;color:#1A6B42;font-variant-numeric:tabular-nums">${fmtS(grandElitez)}</td>
-              <td style="padding:9px 12px;text-align:right;font-size:13px;font-weight:700;color:var(--navy);font-variant-numeric:tabular-nums">${fmtS(grandSaving)}<br><span style="font-size:10.5px;font-weight:500;color:#5A6878">${grandPct.toFixed(1)}% less</span></td>
-            </tr>`:''}
-          </table>
-        </div>
-
-        <div style="margin-bottom:14px">
-          <div style="font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text3);margin-bottom:8px">How hidden costs are estimated</div>
-          <table style="width:100%;border-collapse:collapse;font-size:11.5px">
-            ${legendRows.map(([label,val,note])=>`
-            <tr style="border-top:1px solid #F0F2F5">
-              <td style="padding:5px 10px;font-weight:600;color:var(--text);width:36%">${label}</td>
-              <td style="padding:5px 10px;color:var(--orange);font-weight:700;font-variant-numeric:tabular-nums;width:20%">${val}</td>
-              <td style="padding:5px 10px;color:var(--text2);font-size:11px">${note}</td>
-            </tr>`).join('')}
-          </table>
-        </div>
-
-        <div style="background:linear-gradient(135deg,#0B2440 0%,#153960 100%);border-radius:8px;padding:14px 18px;display:flex;justify-content:space-between;align-items:center">
-          <div>
-            <div style="font-size:11px;color:rgba(255,255,255,.7);font-weight:600;margin-bottom:3px">Estimated annual saving per employee with Elitez</div>
-            <div style="font-size:20px;font-weight:800;color:#fff;font-variant-numeric:tabular-nums">${fmtS((grandSaving/totalPax2)*12)} / year</div>
-          </div>
-          <div style="background:var(--orange);color:#fff;font-size:12px;font-weight:700;padding:6px 14px;border-radius:20px">${grandPct.toFixed(1)}% lower cost</div>
-        </div>
-
-        <div style="font-size:10px;color:var(--text3);margin-top:10px;line-height:1.6;font-style:italic">
-          Note: Hidden cost figures are industry benchmark estimates for illustrative purposes. Actual costs vary by company, industry, and headcount. Statutory figures are per MOM rates.
-        </div>
-      </div>
-    </div>`;
-    $('prvArea').innerHTML += compHtml;
   }
+
+function toggleComparison(){
+  if(!groups.length){ alert('Add at least one worker group first.'); return; }
+
+  const allCalcs2 = groups.map(g=>({g, c:calcGroup(g)}));
+  const paxFmt2 = (g) => (g.sameSalary&&g.pax>1)?g.pax:1;
+  const totalPax2 = allCalcs2.reduce((s,{g})=>s+paxFmt2(g),0);
+
+  const compRows = allCalcs2.map(({g,c})=>{
+    const px = paxFmt2(g);
+    const salary = c.grossTotal;
+    const disbPax = c.disbPerPax;
+    const elitezPax = c.totalPerPax;
+
+    const training    = salary * 0.125;
+    const attrition    = salary / 12;
+    const hrAdmin      = 100;
+    const officeEquip  = ['wp','wpprc'].includes(g.type) ? 200 : 500;
+    const leaveCost    = (salary/26) * (28/12);
+    const superSal     = salary * 1.6;
+    const superCostTotal = superSal * 0.20;
+    const superCost    = superCostTotal / Math.max(1, px);
+    const hiddenTotal  = training + attrition + hrAdmin + officeEquip + leaveCost + superCost;
+    const directPax    = disbPax + hiddenTotal;
+    const savingPax     = directPax - elitezPax;
+    const savingPct     = directPax>0 ? (savingPax/directPax*100) : 0;
+    const grpLabel      = g.tabName.trim() || TYPES[g.type].label;
+
+    return `<tr style="border-top:1px solid #EEF0F4">
+      <td style="padding:8px 12px;font-size:12px;font-weight:600;color:var(--navy)">${esc(grpLabel)} <span style="font-size:10.5px;font-weight:400;color:var(--text2)">(${px} pax)</span></td>
+      <td style="padding:8px 12px;text-align:right;font-variant-numeric:tabular-nums;font-size:12px;color:#C03030;font-weight:600">${fmtS(directPax*px)}</td>
+      <td style="padding:8px 12px;text-align:right;font-variant-numeric:tabular-nums;font-size:12px;color:#1A6B42;font-weight:600">${fmtS(elitezPax*px)}</td>
+      <td style="padding:8px 12px;text-align:right;font-variant-numeric:tabular-nums;font-size:12px;font-weight:700;color:var(--navy)">${fmtS(savingPax*px)}<br><span style="font-size:10px;font-weight:500;color:#5A6878">${savingPct.toFixed(1)}% less</span></td>
+    </tr>`;
+  }).join('');
+
+  const grandDirect = allCalcs2.reduce((s,{g,c})=>{
+    const px=paxFmt2(g); const salary=c.grossTotal;
+    const office=['wp','wpprc'].includes(g.type)?200:500;
+    const superShared=(salary*1.6)*0.20;
+    const hiddenPerPax=salary*0.125 + salary/12 + 100 + office + (salary/26)*(28/12) + superShared/Math.max(1,px);
+    return s+(c.disbPerPax+hiddenPerPax)*px;
+  },0);
+  const grandElitez = allCalcs2.reduce((s,{g,c})=>s+c.totalPerPax*paxFmt2(g),0);
+  const grandSaving = grandDirect - grandElitez;
+  const grandPct = grandDirect>0 ? (grandSaving/grandDirect*100) : 0;
+
+  const sampleSalary = allCalcs2[0]?.c.grossTotal || 0;
+  const s = sampleSalary;
+  const samplePax = allCalcs2[0] ? paxFmt2(allCalcs2[0].g) : 1;
+  const sampleType = allCalcs2[0]?.g.type || 'wp';
+  const sampleOffice = ['wp','wpprc'].includes(sampleType) ? 200 : 500;
+
+  const legendRows = [
+    ['Training & onboarding', 'S$'+(s*0.125).toFixed(0)+'/mth', '12.5% of salary — 1.5 months onboarding cost amortised over 12 months. Covers training, safety briefings, senior staff shadowing time.'],
+    ['Attrition / re-hire risk', 'S$'+(s/12).toFixed(0)+'/mth', '1× monthly salary as re-hire cost ÷ 12 (avg tenure). Covers vacancy gap, re-advertising, re-vetting, re-training replacement.'],
+    ['HR & payroll admin', 'S$100/pax/mth', 'Per headcount: payroll processing, leave management, MOM submissions, IR21 etc.'],
+    ['Operational overhead per headcount', 'S$'+sampleOffice+'/pax/mth', sampleOffice===200?'Factory/worksite — includes tools, PPE, uniform, utilities, and equipment amortised per worker.':'Professional environment — includes workstation, laptop/equipment, utilities, and consumables per headcount.'],
+    ['Leave liability', 'S$'+(s/26*28/12).toFixed(0)+'/mth', '14 AL + 14 SL days entitlement × daily salary rate ÷ 12 months.'],
+    ['Supervisory overhead', 'S$'+((s*1.6)*0.20/Math.max(1,samplePax)).toFixed(0)+'/pax/mth', '20% of supervisor time (est. 1.6× worker salary), shared across '+samplePax+' pax in group. One supervisor covers the whole team.'],
+  ];
+
+  const compHtml = `
+    <div style="background:linear-gradient(135deg,#0B2440 0%,#153960 100%);padding:18px 24px;border-radius:14px 14px 0 0">
+      <div style="font-size:15px;font-weight:700;color:#fff">Why engage Elitez?</div>
+      <div style="font-size:12px;color:rgba(255,255,255,.75);margin-top:3px">Direct hiring vs Via Elitez — ${totalPax2} pax total · You save ${fmtS(grandSaving)}/mth</div>
+    </div>
+    <div style="padding:22px 24px">
+      <p style="font-size:12px;color:var(--text2);margin-bottom:14px;line-height:1.6">
+        Based on industry benchmarks, hiring directly carries hidden costs beyond salary and statutory obligations.
+        This estimate shows the full economic case for engaging Elitez, using the worker details already entered.
+      </p>
+      <table style="width:100%;border-collapse:collapse;margin-bottom:16px">
+        <thead>
+          <tr style="background:#F2F5F9">
+            <th style="padding:7px 12px;text-align:left;font-size:10.5px;font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:.5px">Worker group</th>
+            <th style="padding:7px 12px;text-align:right;font-size:10.5px;font-weight:700;color:#C03030;text-transform:uppercase;letter-spacing:.5px">Direct hire / mth</th>
+            <th style="padding:7px 12px;text-align:right;font-size:10.5px;font-weight:700;color:#1A6B42;text-transform:uppercase;letter-spacing:.5px">Via Elitez / mth</th>
+            <th style="padding:7px 12px;text-align:right;font-size:10.5px;font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:.5px">Saving</th>
+          </tr>
+        </thead>
+        <tbody>${compRows}</tbody>
+        ${allCalcs2.length>1?`<tr style="background:#F2F5F9;border-top:2px solid var(--border)">
+          <td style="padding:9px 12px;font-size:13px;font-weight:700;color:var(--navy)">Grand total</td>
+          <td style="padding:9px 12px;text-align:right;font-size:13px;font-weight:700;color:#C03030;font-variant-numeric:tabular-nums">${fmtS(grandDirect)}</td>
+          <td style="padding:9px 12px;text-align:right;font-size:13px;font-weight:700;color:#1A6B42;font-variant-numeric:tabular-nums">${fmtS(grandElitez)}</td>
+          <td style="padding:9px 12px;text-align:right;font-size:13px;font-weight:700;color:var(--navy);font-variant-numeric:tabular-nums">${fmtS(grandSaving)}<br><span style="font-size:10.5px;font-weight:500;color:#5A6878">${grandPct.toFixed(1)}% less</span></td>
+        </tr>`:''}
+      </table>
+
+      <div style="margin-bottom:16px">
+        <div style="font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text3);margin-bottom:8px">How hidden costs are estimated</div>
+        <table style="width:100%;border-collapse:collapse;font-size:11.5px">
+          ${legendRows.map(([label,val,note])=>`
+          <tr style="border-top:1px solid #F0F2F5">
+            <td style="padding:5px 10px;font-weight:600;color:var(--text);width:30%">${label}</td>
+            <td style="padding:5px 10px;color:var(--orange);font-weight:700;font-variant-numeric:tabular-nums;width:18%">${val}</td>
+            <td style="padding:5px 10px;color:var(--text2);font-size:11px">${note}</td>
+          </tr>`).join('')}
+        </table>
+      </div>
+
+      <div style="background:linear-gradient(135deg,#0B2440 0%,#153960 100%);border-radius:10px;padding:16px 20px;display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <div style="font-size:11px;color:rgba(255,255,255,.7);font-weight:600;margin-bottom:3px">Estimated annual saving per employee with Elitez</div>
+          <div style="font-size:20px;font-weight:800;color:#fff;font-variant-numeric:tabular-nums">${fmtS((grandSaving/totalPax2)*12)} / year</div>
+        </div>
+        <div style="background:var(--orange);color:#fff;font-size:12px;font-weight:700;padding:6px 14px;border-radius:20px">${grandPct.toFixed(1)}% lower cost</div>
+      </div>
+
+      <div style="font-size:10px;color:var(--text3);margin-top:12px;line-height:1.6;font-style:italic">
+        Note: Hidden cost figures are industry benchmark estimates for illustrative purposes. Actual costs vary by company, industry, and headcount. Statutory figures are per MOM rates.
+      </div>
+      <div style="text-align:right;margin-top:14px">
+        <button class="btn sm" onclick="document.getElementById('compareModal').classList.remove('show')" style="padding:7px 16px">Close</button>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('compareModalBody').innerHTML = compHtml;
+  document.getElementById('compareModal').classList.add('show');
 }
 
 function tabLabel(g,i){
