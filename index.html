@@ -900,7 +900,7 @@ function recalc(){
         return`<tr class="${cls}"><td class="a">${esc(r.a)}</td><td class="b">${r.b!==''?fmtS(r.b):''}</td><td class="p"></td><td class="t"></td>${hasRemarks?`<td class="c">${esc(r.remarks||'')}</td>`:''}</tr>`;
       }
       return`<tr class="${cls}"><td class="a">${esc(r.a)}</td><td class="b" colspan="${hasRemarks?1:2}">${r.b!==''?fmtS(r.b):''}</td>${hasRemarks?`<td class="c">${esc(r.remarks||'')}</td>`:''}</tr>`;
-    }).join('');;
+    }).join('');
     return`<div style="border-bottom:1px solid var(--border)"><div class="preview-tab"><span Tab: ${esc(tn)}<span class="preview-tab-stat">${g.pax} pax${g.sameSalary&&g.pax>1?' · Total: '+fmtS(c.totalPerPax*g.pax):' · per pax: '+fmtS(c.totalPerPax)}</span></div><div class="preview-body"><div class="xlt" style="padding:0"><table>${trs}</table></div></div></div>`;
   }).join('');
 
