@@ -51,10 +51,10 @@ body{font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;background:
 .main{display:grid;grid-template-columns:456px 1fr;min-height:calc(100vh - 52px);align-items:start}
 .form-col{background:var(--bg);padding:20px 22px;border-right:1px solid var(--border)}
 .preview-col{background:#E2E7EF;padding:20px 22px}
-.preview-inner{background:var(--surface);border-radius:var(--radius);border:1px solid var(--border);overflow:hidden;position:sticky;top:70px;box-shadow:var(--shadow-float);display:flex;flex-direction:column;max-height:calc(100vh - 92px)}
+.preview-inner{background:var(--surface);border-radius:var(--radius);border:1px solid var(--border);overflow:hidden;position:sticky;top:70px;box-shadow:var(--shadow-float)}
 .preview-tab{background:var(--navy2);color:#fff;padding:10px 18px;font-size:11.5px;font-weight:600;display:flex;justify-content:space-between;align-items:center;letter-spacing:.15px;flex-shrink:0}
 .preview-tab-stat{color:#A8C8E8;font-size:11px;font-weight:400;font-variant-numeric:tabular-nums}
-.preview-body{padding:22px 26px;overflow-x:auto;overflow-y:auto;flex:1;min-height:0}
+.preview-body{padding:22px 26px;overflow-x:auto}
 .preview-empty{padding:64px 30px;text-align:center;color:var(--text2)}
 .preview-empty-icon{margin-bottom:14px;opacity:.3}
 .preview-empty-title{font-size:14px;font-weight:600;color:var(--text);margin-bottom:5px;letter-spacing:-.1px}
@@ -1019,7 +1019,14 @@ function toggleComparison(){
     const superSal     = salary * 1.6;
     const superCostTotal = superSal * 0.20;
     const superCost    = superCostTotal / Math.max(1, px);
-    const hiddenTotal  = training + attrition + hrAdmin + officeEquip + leaveCost + superCost;
+    // Quota cost: WP/WP(PRC)/SP require local headcount to unlock hiring quota (Dependency Ratio Ceiling)
+    //   Services sector DRC = 1 local : 3 WP/SP (per MOM, effective 1 Jan 2026)
+    //   Cost = (1/3) of a Local Qualifying Salary headcount (LQS $1,600 + CPF 17% + SDL + WICA)
+    const LQS = 1600;
+    const lqsCpf = LQS*0.17, lqsSdl = Math.min(Math.max(LQS*0.0025,2),11.25), lqsWica = LQS*0.015;
+    const localHeadcountCost = LQS + lqsCpf + lqsSdl + lqsWica; // ≈ $1,900/mth
+    const quotaCost = ['wp','wpprc','sp'].includes(g.type) ? localHeadcountCost / 3 : 0;
+    const hiddenTotal  = training + attrition + hrAdmin + officeEquip + leaveCost + superCost + quotaCost;
     const directPax    = disbPax + hiddenTotal;
     const savingPax     = directPax - elitezPax;
     const savingPct     = directPax>0 ? (savingPax/directPax*100) : 0;
@@ -1037,7 +1044,9 @@ function toggleComparison(){
     const px=paxFmt2(g); const salary=c.grossTotal;
     const office=['wp','wpprc'].includes(g.type)?200:500;
     const superShared=(salary*1.6)*0.20;
-    const hiddenPerPax=salary*0.125 + salary/12 + 100 + office + (salary/26)*(28/12) + superShared/Math.max(1,px);
+    const LQS=1600; const localHC=LQS+LQS*0.17+Math.min(Math.max(LQS*0.0025,2),11.25)+LQS*0.015;
+    const quota=['wp','wpprc','sp'].includes(g.type)?localHC/3:0;
+    const hiddenPerPax=salary*0.125 + salary/12 + 100 + office + (salary/26)*(28/12) + superShared/Math.max(1,px) + quota;
     return s+(c.disbPerPax+hiddenPerPax)*px;
   },0);
   const grandElitez = allCalcs2.reduce((s,{g,c})=>s+c.totalPerPax*paxFmt2(g),0);
@@ -1050,6 +1059,11 @@ function toggleComparison(){
   const sampleType = allCalcs2[0]?.g.type || 'wp';
   const sampleOffice = ['wp','wpprc'].includes(sampleType) ? 200 : 500;
 
+  const sampleNeedsQuota = ['wp','wpprc','sp'].includes(sampleType);
+  const sampleLQS = 1600;
+  const sampleLocalHC = sampleLQS + sampleLQS*0.17 + Math.min(Math.max(sampleLQS*0.0025,2),11.25) + sampleLQS*0.015;
+  const sampleQuotaCost = sampleLocalHC/3;
+
   const legendRows = [
     ['Training & onboarding', 'S$'+(s*0.125).toFixed(0)+'/mth', '12.5% of salary — 1.5 months onboarding cost amortised over 12 months. Covers training, safety briefings, senior staff shadowing time.'],
     ['Attrition / re-hire risk', 'S$'+(s/12).toFixed(0)+'/mth', '1× monthly salary as re-hire cost ÷ 12 (avg tenure). Covers vacancy gap, re-advertising, re-vetting, re-training replacement.'],
@@ -1057,6 +1071,7 @@ function toggleComparison(){
     ['Operational overhead per headcount', 'S$'+sampleOffice+'/pax/mth', sampleOffice===200?'Factory/worksite — includes tools, PPE, uniform, utilities, and equipment amortised per worker.':'Professional environment — includes workstation, laptop/equipment, utilities, and consumables per headcount.'],
     ['Leave liability', 'S$'+(s/26*28/12).toFixed(0)+'/mth', '14 AL + 14 SL days entitlement × daily salary rate ÷ 12 months.'],
     ['Supervisory overhead', 'S$'+((s*1.6)*0.20/Math.max(1,samplePax)).toFixed(0)+'/pax/mth', '20% of supervisor time (est. 1.6× worker salary), shared across '+samplePax+' pax in group. One supervisor covers the whole team.'],
+    ...(sampleNeedsQuota ? [['Work pass quota cost (DRC)', 'S$'+sampleQuotaCost.toFixed(0)+'/pax/mth', 'To hire each WP/S Pass, MOM requires 1 local headcount per 3 foreign workers (Dependency Ratio Ceiling, services sector). This local hire is a real cost the client bears just to unlock quota — based on Local Qualifying Salary $1,600 + CPF + SDL + WICA, divided across 3 quota slots. Via Elitez, this quota burden does not apply to the client.']] : []),
   ];
 
   const compHtml = `
