@@ -2053,23 +2053,20 @@ async function sendOTP(){
 
   btn.textContent='Sending...'; btn.disabled=true;
   try{
-    const { error } = await getSB().auth.signInWithOtp({
+    // shouldCreateUser:true allows new email-only OTP users (no pre-existing account needed)
+    const { data, error } = await getSB().auth.signInWithOtp({
       email,
-      options:{ shouldCreateUser: false }
+      options:{ shouldCreateUser: true }
     });
-    if(error){
-      // If user doesn't exist in Supabase, allow anyway — just verify domain
-      // Some Supabase configs require shouldCreateUser:true
-      const { error: err2 } = await getSB().auth.signInWithOtp({ email });
-      if(err2) throw err2;
-    }
+    console.log('signInWithOtp result:', { data, error });
+    if(error) throw error;
     document.getElementById('otpSentMsg').textContent = `A 6-digit code has been sent to ${email}`;
     document.getElementById('stepEmail').style.display='none';
     document.getElementById('stepOTP').style.display='';
     setTimeout(()=>document.getElementById('otpInput').focus(), 100);
   } catch(e){
-    err.textContent = 'Failed to send code. Please try again or contact your HR manager.';
-    console.error(e);
+    err.textContent = 'Error: ' + (e?.message || 'Failed to send code') + ' (check console for details)';
+    console.error('OTP send error:', e);
   } finally{
     btn.textContent='Send Verification Code'; btn.disabled=false;
   }
