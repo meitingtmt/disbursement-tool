@@ -296,7 +296,7 @@ textarea{resize:vertical;line-height:1.5}
         <div class="fg"><label>Date</label><input id="cDate" type="date" oninput="recalc()"></div>
       </div>
       <label class="chk-row"><input type="checkbox" id="chkBGST" checked onchange="recalc()"><div><div class="chk-lbl">Show "Rate (Before GST)" as column header</div></div></label>
-      <label class="chk-row"><input type="checkbox" id="chkRemarks" onchange="renderGroups();recalc()"><div><div class="chk-lbl">Include Remarks column</div><div class="chk-sub">Adds a column for notes like "Waived off" or "Usual price: $55"</div></div></label>
+      <input type="checkbox" id="chkRemarks" checked style="display:none">
     </div>
 
     <div class="card">
@@ -348,7 +348,7 @@ textarea{resize:vertical;line-height:1.5}
 
     <div class="card">
       <div class="card-title">Optional services <span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:11px;color:var(--text2)">— quoted, not added to monthly total</span></div>
-      <div class="svc-hdr"><span>Service name</span><span>Rate (S$)</span><span>Remarks</span><span></span></div>
+      <div class="svc-hdr"><span>Service name</span><span>Rate ($)</span><span>Remarks</span><span></span></div>
       <div id="svcList"></div>
       <button class="btn add sm" onclick="addSvc()" style="margin-top:5px">＋ Add service</button>
     </div>
@@ -356,7 +356,7 @@ textarea{resize:vertical;line-height:1.5}
     <div class="card">
       <div class="card-title">Disclaimer</div>
       <div class="fg"><label>Statement <span class="opt">(printed at bottom of table)</span></label>
-        <textarea id="disclaimer" class="disc-area" oninput="recalc()">All charges above are computed based on the employee's declared salary at the time of billing. Charges are subject to change whenever the employee's salary package is revised. Elitez Group reserves the right to adjust the monthly disbursement accordingly.</textarea>
+        <textarea id="disclaimer" class="disc-area" oninput="recalc()">All charges above are computed based on the employee's declared salary at the time of billing and are subject to GST where applicable. Charges are subject to change whenever the employee's salary package is revised. Elitez Group reserves the right to adjust the monthly disbursement accordingly.</textarea>
       </div>
     </div>
 
@@ -387,7 +387,7 @@ const TYPES={
 const ACCT='_("$"* #,##0.00_);_("$"* \\(#,##0.00\\);_("$"* "-"??_);_(@_)';
 let groups=[],svcs=[
   {id:1,name:'Work Pass Application',rate:600,remark:''},
-  {id:2,name:'Work Pass Cancellation',rate:95,remark:''},
+  {id:2,name:'Work Pass Cancellation',rate:80,remark:''},
   {id:3,name:'Medical Check Up',rate:50,remark:''},
 ],gid=0,sid=3;
 
@@ -400,9 +400,10 @@ const fmtS=n=>'$'+(Math.round(n*100)/100).toLocaleString('en-SG',{minimumFractio
 function addGroup(){
   const dt=TYPES['wp'];
   groups.push({id:++gid,type:'wp',tabName:'',pax:1,
-    grossRows:[{id:1,label:'Monthly Remuneration',val:0,formula:'',remark:''}],
+    grossRows:[{id:1,label:'Basic Salary',val:0,formula:'',remark:''}],
     awsInGross:false,awsMode:'none',awsAmt:0,commission:0,
-    levy:dt.levy,medical:55,wica:1.5,cpfOverride:false,sameSalary:true,awsLabel:'Annual Wage Supplement',
+    levy:dt.levy,medical:65,wica:1.5,cpfOverride:false,sameSalary:true,awsLabel:'Annual Wage Supplement',
+    depositMonths:2,depositIncFee:true,
     feeOverride:false,grpFeeMode:dt.feeMode,grpFeeFlat:dt.feeFlat,grpFeeFloor:dt.feeFloor,grpFeePct:dt.feePct,grpFeeLabel:'Monthly Service Fees',
     hourly:false,hourlyRate:0,hoursPerMonth:0,secBond:false,secBondAmount:5000,secBondFee:140,
     remarkLevy:'',remarkMedical:'',remarkCPF:'',remarkSDL:'',remarkWICA:'',remarkAWS:''});
@@ -417,6 +418,7 @@ function upG(id,field,val){
     const td=TYPES[val];
     g.grpFeeMode=td.feeMode; g.grpFeeFlat=td.feeFlat;
     g.grpFeeFloor=td.feeFloor; g.grpFeePct=td.feePct;
+    g.depositMonths=v==='local'?0:2;
     renderGroups();
   }
   else if(field==='awsMode'){g.awsMode=val;renderGroups();}
@@ -473,7 +475,7 @@ function renderGroups(){
         <select onchange="upG(${g.id},'type',this.value)">
           ${Object.entries(TYPES).map(([k,t])=>`<option value="${k}"${g.type===k?' selected':''}>${t.label}</option>`).join('')}
         </select></div>
-      <div class="fg"><label>Tab name (blank = auto)</label>
+      <div class="fg"><label>Excel tab name (blank = auto)</label>
         <input value="${esc(g.tabName)}" placeholder="auto from client name" oninput="upG(${g.id},'tabName',this.value)"></div>
     </div>
     <div class="fg">
@@ -484,11 +486,12 @@ function renderGroups(){
       </div>
       <div class="hint" style="margin-top:3px">${g.sameSalary||g.pax<=1?'Table will show rate × pax = total for each line.':'Different salaries? Uncheck and add a separate group per worker.'}</div>
     </div>
+    ${g.type==='local'?`
     <label class="chk-row" style="margin-bottom:8px">
       <input type="checkbox" ${g.hourly?'checked':''} onchange="upG(${g.id},'hourly',this.checked);recalc()">
       <div><div class="chk-lbl">Hourly rated employee</div>
       <div class="chk-sub">Monthly remuneration will be calculated from hourly rate × hours per month.</div></div>
-    </label>
+    </label>`:''}
     <div class="mini-sec">Gross salary</div>
     ${g.hourly?`
     <div class="r2">
@@ -562,30 +565,48 @@ function renderGroups(){
     </div>`:''}
     `:''}
     ${document.getElementById('chkSameFee')?.checked===false?`
-    <div class="mini-sec" style="margin-top:14px">Service fee for this group</div>
-    <div style="background:#f0f4f8;border:1px solid #dde4ed;border-radius:6px;padding:8px 10px;margin-bottom:8px;font-size:11.5px">
-      <span style="color:var(--text2)">Auto-detected rate for ${TYPES[g.type].label}:</span>
-      <span style="font-weight:700;color:var(--navy);margin-left:4px">${TYPES[g.type].feeMode==='max'?`$${TYPES[g.type].feeFloor} or ${TYPES[g.type].feePct}% whichever higher`:`$${TYPES[g.type].feeFlat} flat`}</span>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px;margin-bottom:10px">
+      <div class="fg" style="margin:0">
+        <label>Security deposit <span style="font-weight:400;color:var(--text3)">(months)</span></label>
+        <input type="number" min="0" max="12" step="1" value="${g.depositMonths||0}" oninput="upG(${g.id},'depositMonths',parseFloat(this.value)||0);recalc()">
+        <div class="hint">${g.type==='local'?'Local workers: deposit optional.':'Foreign workers: deposit required unless Top Mgmt approved.'}</div>
+      </div>
+      <div class="fg" style="margin:0">
+        <label>Include service fee in deposit?</label>
+        <select onchange="upG(${g.id},'depositIncFee',this.value==='yes')">
+          <option value="yes"${(g.depositIncFee!==false)?' selected':''}>Yes — include monthly service fee</option>
+          <option value="no"${(g.depositIncFee===false)?' selected':''}>No — salary only</option>
+        </select>
+        ${(g.depositIncFee===false)?`<div class="hint" style="color:#C03030">⚠ Excluding fee from deposit requires Top Mgmt approval.</div>`:''}
+      </div>
     </div>
-    <label class="chk-row" style="margin-bottom:8px">
-      <input type="checkbox" ${g.feeOverride?'checked':''} onchange="upG(${g.id},'feeOverride',this.checked);recalc()">
-      <div><div class="chk-lbl">Customise fee for this group</div>
-      <div class="chk-sub">Override the auto-detected rate above.</div></div>
-    </label>`:''}
-    ${g.feeOverride?`
-    <div class="r2">
-      <div class="fg"><label>Fee type</label>
-        <select onchange="upG(${g.id},'grpFeeMode',this.value)">
+    ${(g.type!=='local'&&(g.depositMonths||0)===0)?`<div style="background:#FDF2F2;border:1px solid #F0D0D0;border-radius:6px;padding:7px 10px;font-size:11px;color:#C03030;margin-bottom:8px;display:flex;align-items:center;gap:6px">
+      <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" width="13" height="13"><circle cx="7" cy="7" r="6"/><path d="M7 4.5v3M7 9.5v.1"/></svg>
+      No deposit set for ${TYPES[g.type].label}. Deposit is required unless Top Management has approved waiver.
+    </div>`:''}
+    <div class="mini-sec" style="margin-top:14px">Monthly service fee for this group</div>
+    <div class="r2" style="margin-bottom:6px">
+      <div class="fg" style="margin:0"><label>Fee type</label>
+        <select onchange="upG(${g.id},'grpFeeMode',this.value);upG(${g.id},'feeOverride',true)">
           <option value="flat"${g.grpFeeMode==='flat'?' selected':''}>Flat monthly</option>
           <option value="max"${g.grpFeeMode==='max'?' selected':''}>$X or Y% whichever higher</option>
           <option value="pct"${g.grpFeeMode==='pct'?' selected':''}>% of disbursement</option>
           <option value="none"${g.grpFeeMode==='none'?' selected':''}>No fee for this group</option>
         </select>
       </div>
-      <div class="fg"><label>${g.grpFeeMode==='max'?'Min floor (S$)':'Fee amount (S$)'}</label>
-        <input type="number" min="0" value="${g.grpFeeMode==='max'?g.grpFeeFloor:g.grpFeeFlat}" oninput="upG(${g.id},g.grpFeeMode==='max'?'grpFeeFloor':'grpFeeFlat',this.value)">
+      <div class="fg" style="margin:0"><label>${g.grpFeeMode==='max'?'Min floor ($)':'Fee amount ($)'}</label>
+        <input type="number" min="0" value="${g.grpFeeMode==='max'?g.grpFeeFloor:g.grpFeeFlat}" oninput="upG(${g.id},'feeOverride',true);upG(${g.id},g.grpFeeMode==='max'?'grpFeeFloor':'grpFeeFlat',this.value)">
       </div>
     </div>
+    ${(()=>{
+      const minRate=TYPES[g.type].feeFlat||0;
+      const curRate=g.grpFeeMode==='max'?g.grpFeeFloor:g.grpFeeFlat;
+      const belowMin=g.grpFeeMode!=='none'&&curRate>0&&curRate<minRate;
+      return belowMin?`<div style="background:#FDF2F2;border:1px solid #F0D0D0;border-radius:6px;padding:7px 10px;font-size:11px;color:#C03030;margin-bottom:6px;display:flex;align-items:center;gap:6px">
+        <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" width="13" height="13"><circle cx="7" cy="7" r="6"/><path d="M7 4.5v3M7 9.5v.1"/></svg>
+        Rate below standard ($${minRate} for ${TYPES[g.type].label}). Top management approval required.
+      </div>`:'';
+    })()}
     ${g.grpFeeMode==='max'?`<div class="r2"><div class="fg"><label>% of disbursement</label>
       <input type="number" min="0" step="1" value="${g.grpFeePct}" oninput="upG(${g.id},'grpFeePct',this.value)">
     </div></div>`:''}
@@ -633,12 +654,12 @@ function renderPayRemarks(){
   const fm=$('selFee').value;
   const el=document.getElementById('payRemarksFields');
   if(!el) return;
-  const row=(id,label)=>`<div class="fg" style="margin-bottom:7px">
-    <label style="font-size:10.5px;color:var(--text2);font-weight:600">${label} <span style="font-weight:400;opacity:.7">(remark)</span></label>
-    <input value="${payRemarks[id]||''}" placeholder="e.g. Waived off, Subject to change" oninput="payRemarks['${id}']=this.value;recalc()">
+  const row=(id,label)=>`<div class="fg" style="margin:0">
+    <label style="font-size:10.5px;color:var(--text2);font-weight:600">${label}</label>
+    <input value="${payRemarks[id]||''}" placeholder="Optional note printed on table">
   </div>`;
   let fields='';
-  if(fm!=='none') fields+=row('fee','Admin fees');
+  if(fm!=='none') fields+=row('fee','Monthly Service Fees');
   if(m==='deposit'||m==='staged') fields+=row('deposit','Deposit');
   if(m==='simple') fields+=row('total','Total charges per month');
   if(m==='deposit') fields+=row('monthly','Monthly payment');
@@ -648,9 +669,9 @@ function renderPayRemarks(){
     fields+=row('subsequent','Subsequent payment');
   }
   if(fields){
-    el.innerHTML=`<div style="padding-top:8px;border-top:1px solid var(--border);margin-top:4px">
-      <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text3);margin-bottom:8px">Payment line remarks</div>
-      ${fields}</div>`;
+    el.innerHTML=`<div style="padding-top:8px;border-top:1px solid var(--border);margin-top:8px">
+      <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text3);margin-bottom:8px">Payment line remarks <span style="font-weight:400;text-transform:none;font-size:10.5px;letter-spacing:0;color:var(--text3)">(optional — printed on table)</span></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">${fields}</div></div>`;
   } else {
     el.innerHTML='';
   }
@@ -791,7 +812,7 @@ function buildRows(g,c){
   T('head','Gross Salary Breakdown',bGST?'Rate \n(Before GST)':'Rate',false,'');
   // gross rows — all salary components
   if(g.hourly){
-    T('item','Estimated Monthly Salary',c.base,false,g.hourlyRate>0&&g.hoursPerMonth>0?`Hourly: S$${g.hourlyRate.toFixed(2)} × ${g.hoursPerMonth} hrs/mth`:'Hourly rated',true);
+    T('item','Estimated Monthly Salary',c.base,false,g.hourlyRate>0&&g.hoursPerMonth>0?`Hourly: $${g.hourlyRate.toFixed(2)} × ${g.hoursPerMonth} hrs/mth`:'Hourly rated',true);
   } else {
     g.grossRows.forEach(r=>{T('item',r.label,r.val,false,r.remark||'',true);});
   }
@@ -799,7 +820,7 @@ function buildRows(g,c){
   if(c.aws>0){T('item',g.awsLabel||'Annual Wage Supplement',c.aws,false,g.remarkAWS||'',true);}
   // Monthly Remuneration subtotal — only show if there are multiple gross components
   const hasMultipleGross = g.grossRows.length > 1 || c.aws > 0;
-  if(hasMultipleGross) T('item','Monthly Remuneration',c.base,false,'',true);
+  if(hasMultipleGross) T('item','Total Monthly Salary',c.base,true,'',true);
   T('blank','','',false,'');
   T('head','Statutory Employer Obligation Breakdown','',false,'');
   if(c.cpf>0){T('item','CPF (Employer 17%)',c.cpf,false,g.remarkCPF||'',true);}
@@ -908,7 +929,11 @@ function buildRows(g,c){
       // Medical check up = "if any", annotate
       const isMedical=/medical check/i.test(s.name);
       const svcLabel=isMedical?svcName+' (if any)':svcName;
-      const svcRemark=isMedical?(s.remark?s.remark+' · $15 admin fee + actual cost':'$15 admin fee + actual check-up cost'):s.remark;
+      // Pre-fill work pass application/cancellation remark with worker type
+      let svcRemark=s.remark;
+      if(!svcRemark&&/application/i.test(s.name)) svcRemark='For '+TYPES[g.type].label;
+      if(!svcRemark&&/cancellation/i.test(s.name)) svcRemark='For '+TYPES[g.type].label;
+      if(isMedical) svcRemark=s.remark?s.remark+' · $15 admin fee + actual cost':'$15 admin fee + actual check-up cost';
       T('item',svcLabel,s.rate,false,svcRemark,showSvcPax);
     });
   }
@@ -1227,7 +1252,7 @@ function loadFromExcel(input){
           pax:1, sameSalary:true,
           grossRows:[{id:1,label:'Monthly Remuneration',val:0,remark:''}],
           awsMode:'none', awsAmt:0, awsMonths:1, awsLabel:'Annual Wage Supplement',
-          levy:800, medical:55, wica:1.5,
+          levy:800, medical:65, wica:1.5,
           feeOverride:false, grpFeeMode:'flat', grpFeeFlat:1000,
           grpFeeFloor:0, grpFeePct:0, grpFeeLabel:'Monthly Service Fees',
           hourly:false, hourlyRate:0, hoursPerMonth:0,
@@ -1720,7 +1745,7 @@ function parsePDFLines_OLD(lines){
       type:'wp', pax:1, sameSalary:true, tabName:'',
       grossRows:[{id:Date.now()+gi*1000, label:'Monthly Remuneration', val:0, remark:''}],
       awsMode:'none', awsAmt:0, awsLabel:'Annual Wage Supplement',
-      levy:dt.levy, medical:55, wica:1.5,
+      levy:dt.levy, medical:65, wica:1.5,
       feeOverride:true, grpFeeMode:'flat', grpFeeFlat:0, grpFeeFloor:0, grpFeePct:0, grpFeeLabel:'Monthly Service Fees',
       hourly:false, hourlyRate:0, hoursPerMonth:0,
       remarkLevy:'', remarkMedical:'', remarkCPF:'', remarkSDL:'', remarkWICA:'', remarkAWS:'',
@@ -1826,7 +1851,7 @@ function parsePDFLines_OLD(lines){
 
   // optional services — use parsed or fall back to defaults
   if(!out.svcs.length){
-    out.svcs = [{id:1,name:'Work Pass Application',rate:600,remark:''},{id:2,name:'Work Pass Cancellation',rate:95,remark:''},{id:3,name:'Medical Check Up',rate:50,remark:''}];
+    out.svcs = [{id:1,name:'Work Pass Application',rate:600,remark:''},{id:2,name:'Work Pass Cancellation',rate:80,remark:''},{id:3,name:'Medical Check Up',rate:50,remark:''}];
   }
 
   return {data:out, matched, total: matched.length};
@@ -1900,7 +1925,7 @@ function parsePDFLines(lines){
     const g={type:'wp',pax:1,sameSalary:true,tabName:'',
       grossRows:[{id:Date.now()+gi*1000,label:'Monthly Remuneration',val:0,remark:''}],
       awsMode:'none',awsAmt:0,awsMonths:1,awsLabel:'Annual Wage Supplement',
-      levy:dt.levy,medical:55,wica:1.5,
+      levy:dt.levy,medical:65,wica:1.5,
       feeOverride:true,grpFeeMode:'flat',grpFeeFlat:0,grpFeeFloor:0,grpFeePct:0,grpFeeLabel:'Monthly Service Fees',
       hourly:false,hourlyRate:0,hoursPerMonth:0,secBond:false,secBondAmount:5000,secBondFee:140,
       remarkLevy:'',remarkMedical:'',remarkCPF:'',remarkSDL:'',remarkWICA:'',remarkAWS:'',
@@ -2015,7 +2040,7 @@ function parsePDFLines(lines){
   const discLine=lines.slice().reverse().find(l=>/declared salary|subject to change|reserves the right/i.test(l));
   if(discLine){out.disclaimer=discLine;matched.push('Disclaimer');}
   if(!out.svcs.length){
-    out.svcs=[{id:1,name:'Work Pass Application',rate:600,remark:''},{id:2,name:'Work Pass Cancellation',rate:95,remark:''},{id:3,name:'Medical Check Up',rate:50,remark:''}];
+    out.svcs=[{id:1,name:'Work Pass Application',rate:600,remark:''},{id:2,name:'Work Pass Cancellation',rate:80,remark:''},{id:3,name:'Medical Check Up',rate:50,remark:''}];
   }
   return{data:out,matched,total:matched.length};
 }
@@ -2115,7 +2140,7 @@ function applyParsed(result){
   // ── Optional services ──
   svcs = d.svcs&&d.svcs.length>0 ? d.svcs : [
     {id:1,name:'Work Pass Application',rate:600,remark:''},
-    {id:2,name:'Work Pass Cancellation',rate:95,remark:''},
+    {id:2,name:'Work Pass Cancellation',rate:80,remark:''},
     {id:3,name:'Medical Check Up',rate:50,remark:''}
   ];
   sid = svcs.reduce((m,s)=>Math.max(m,s.id),sid)+1;
