@@ -27,11 +27,11 @@
 body{font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;background:var(--bg);color:var(--text);font-size:13px;line-height:1.55;-webkit-font-smoothing:antialiased;min-height:100vh}
 
 /* ── topbar ── */
-.topbar{background:var(--navy);color:#fff;padding:0 28px;height:56px;display:flex;align-items:center;gap:16px;position:sticky;top:0;z-index:100;box-shadow:var(--shadow-topbar)}
-.topbar-wordmark{display:flex;align-items:center;gap:0;font-size:15px;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:#fff}
+.topbar{background:var(--navy);color:#fff;padding:0 24px;height:56px;display:flex;align-items:center;gap:0;position:sticky;top:0;z-index:100;box-shadow:var(--shadow-topbar)}
+.topbar-wordmark{display:flex;align-items:center;gap:0;font-size:19px;font-weight:800;letter-spacing:2.5px;text-transform:uppercase;color:#fff}
 .topbar-wordmark .t-orange{color:var(--orange)}
-.topbar-divider{width:1px;height:20px;background:rgba(255,255,255,.15);margin:0 14px}
-.topbar-subtitle{font-size:11px;color:#7A9AB8;font-weight:500;letter-spacing:.3px}
+.topbar-divider{width:1px;height:22px;background:rgba(255,255,255,.15);margin:0 16px}
+.topbar-subtitle{font-size:12px;color:#A8C8E8;font-weight:500;letter-spacing:.2px}
 .topbar-actions{margin-left:auto;display:flex;gap:8px;align-items:center}
 
 /* ── topbar buttons ── */
@@ -46,9 +46,15 @@ body{font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;background:
 .tbtn.why-better{background:#1A6B42;border-color:#1A6B42;color:#fff}
 .tbtn.why-better:hover{background:#155A37;box-shadow:0 2px 8px rgba(26,107,66,.4)}
 .tbtn.why-better.active{background:#0E4429;border-color:#0E4429}
+.tbtn-drop{position:relative}
+.drop-menu{display:none;position:absolute;top:calc(100% + 6px);right:0;background:#fff;border:1px solid var(--border);border-radius:8px;box-shadow:0 4px 20px rgba(11,36,64,.15);min-width:170px;z-index:200;padding:4px}
+.tbtn-drop.open .drop-menu{display:block}
+.drop-item{display:flex;align-items:center;gap:8px;padding:8px 12px;font-size:12px;font-weight:500;color:var(--text);cursor:pointer;border-radius:6px;transition:background .12s}
+.drop-item:hover{background:#F2F5F9}
+.drop-item svg{width:13px;height:13px;flex-shrink:0;color:var(--text2)}
 
 /* ── main layout ── */
-.main{display:grid;grid-template-columns:456px 1fr;min-height:calc(100vh - 52px);align-items:start}
+.main{display:grid;grid-template-columns:2fr 3fr;min-height:calc(100vh - 56px);align-items:start}
 .form-col{background:var(--bg);padding:20px 22px;border-right:1px solid var(--border)}
 .preview-col{background:#E2E7EF;padding:20px 22px}
 .preview-inner{background:var(--surface);border-radius:var(--radius);border:1px solid var(--border);overflow:hidden;position:sticky;top:70px;box-shadow:var(--shadow-float)}
@@ -183,6 +189,7 @@ textarea{resize:vertical;line-height:1.5}
 .lock-error{font-size:12px;color:var(--red);margin-top:8px;min-height:18px}
 .lock-hint{font-size:11px;color:var(--text3);margin-top:16px}
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
 
@@ -193,19 +200,40 @@ textarea{resize:vertical;line-height:1.5}
   <div class="topbar-divider"></div>
   <div class="topbar-subtitle">Disbursement Table Generator</div>
   <div class="topbar-actions">
-    <button class="tbtn ghost" onclick="document.getElementById('pdfUpload').click()">
-      <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M7 1v8M4 6l3 3 3-3M2 11h10"/></svg>
-      Load from PDF
-    </button>
     <input type="file" id="pdfUpload" accept=".pdf" style="display:none" onchange="loadFromPDF(this)">
-    <button class="tbtn outline" id="pdfBtn" onclick="exportPDFSafe()">
-      <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="2" y="1" width="10" height="12" rx="1.5"/><path d="M4 4h6M4 7h6M4 10h4"/></svg>
-      PDF
-    </button>
-    <button class="tbtn primary" id="xlsBtn" onclick="exportExcelSafe()">
-      <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 1H3a1 1 0 00-1 1v10a1 1 0 001 1h8a1 1 0 001-1V6L8 1z"/><path d="M8 1v5h5M5 8l4 4M9 8l-4 4"/></svg>
-      Download Excel
-    </button>
+    <input type="file" id="xlsUpload" accept=".xlsx,.xls" style="display:none" onchange="loadFromExcel(this)">
+    <div class="tbtn-drop" id="importDrop">
+      <button class="tbtn ghost" onclick="toggleDrop('importDrop')">
+        <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M7 1v8M4 6l3 3 3-3M2 11h10"/></svg>
+        Import <svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="width:9px;height:9px"><path d="M2 3.5l3 3 3-3"/></svg>
+      </button>
+      <div class="drop-menu">
+        <div class="drop-item" onclick="closeDrop('importDrop');document.getElementById('pdfUpload').click()">
+          <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="2" y="1" width="10" height="12" rx="1.5"/><path d="M4 4h6M4 7h6M4 10h4"/></svg>
+          Import from PDF
+        </div>
+        <div class="drop-item" onclick="closeDrop('importDrop');document.getElementById('xlsUpload').click()">
+          <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 1H3a1 1 0 00-1 1v10a1 1 0 001 1h8a1 1 0 001-1V6L8 1z"/><path d="M8 1v5h5"/></svg>
+          Import from Excel
+        </div>
+      </div>
+    </div>
+    <div class="tbtn-drop" id="exportDrop">
+      <button class="tbtn primary" onclick="toggleDrop('exportDrop')">
+        <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M7 9V1M4 6l3 3 3-3M2 11h10"/></svg>
+        Export <svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="width:9px;height:9px"><path d="M2 3.5l3 3 3-3"/></svg>
+      </button>
+      <div class="drop-menu">
+        <div class="drop-item" id="pdfBtn" onclick="closeDrop('exportDrop');exportPDFSafe()">
+          <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="2" y="1" width="10" height="12" rx="1.5"/><path d="M4 4h6M4 7h6M4 10h4"/></svg>
+          Export as PDF
+        </div>
+        <div class="drop-item" id="xlsBtn" onclick="closeDrop('exportDrop');exportExcelSafe()">
+          <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 1H3a1 1 0 00-1 1v10a1 1 0 001 1h8a1 1 0 001-1V6L8 1z"/><path d="M8 1v5h5M5 8l4 4M9 8l-4 4"/></svg>
+          Export as Excel
+        </div>
+      </div>
+    </div>
     <button class="tbtn why-better" onclick="toggleComparison()" id="whyBetterBtn">
       <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="7" cy="7" r="6"/><path d="M7 9.5v-1c0-.8.5-1.2 1-1.5.5-.3 1-.8 1-1.5a2 2 0 10-4 0"/><circle cx="7" cy="11" r=".1" fill="currentColor"/></svg>
       Why are we better?
@@ -290,7 +318,7 @@ textarea{resize:vertical;line-height:1.5}
           </select>
         </div>
         <div id="feeFields"></div>
-        <div class="fg"><label>Fee label <span class="opt">(appears on sheet)</span></label><input id="feeLabel" value="Admin Fees" oninput="recalc()"></div>
+        <div class="fg"><label>Fee label <span class="opt">(appears on sheet)</span></label><input id="feeLabel" value="Monthly Service Fees" oninput="recalc()"></div>
       </div>
     </div>
 
@@ -374,8 +402,8 @@ function addGroup(){
   groups.push({id:++gid,type:'wp',tabName:'',pax:1,
     grossRows:[{id:1,label:'Monthly Remuneration',val:0,formula:'',remark:''}],
     awsInGross:false,awsMode:'none',awsAmt:0,commission:0,
-    levy:dt.levy,medical:5.89,wica:1.5,cpfOverride:false,sameSalary:true,awsLabel:'Annual Wage Supplement',
-    feeOverride:false,grpFeeMode:dt.feeMode,grpFeeFlat:dt.feeFlat,grpFeeFloor:dt.feeFloor,grpFeePct:dt.feePct,grpFeeLabel:'Admin Fees',
+    levy:dt.levy,medical:55,wica:1.5,cpfOverride:false,sameSalary:true,awsLabel:'Annual Wage Supplement',
+    feeOverride:false,grpFeeMode:dt.feeMode,grpFeeFlat:dt.feeFlat,grpFeeFloor:dt.feeFloor,grpFeePct:dt.feePct,grpFeeLabel:'Monthly Service Fees',
     hourly:false,hourlyRate:0,hoursPerMonth:0,secBond:false,secBondAmount:5000,secBondFee:140,
     remarkLevy:'',remarkMedical:'',remarkCPF:'',remarkSDL:'',remarkWICA:'',remarkAWS:''});
   renderGroups();recalc();
@@ -440,12 +468,12 @@ function renderGroups(){
       <button class="btn sm dn" onclick="removeGroup(${g.id})">Remove</button>
     </div>
     <div class="grp-body">
-    <div class="r2">
-      <div class="fg"><label>Worker type</label>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+      <div class="fg" style="margin:0"><label>Worker type</label>
         <select onchange="upG(${g.id},'type',this.value)">
           ${Object.entries(TYPES).map(([k,t])=>`<option value="${k}"${g.type===k?' selected':''}>${t.label}</option>`).join('')}
         </select></div>
-      <div class="fg"><label>Tab name (leave blank = auto)</label>
+      <div class="fg"><label>Tab name (blank = auto)</label>
         <input value="${esc(g.tabName)}" placeholder="auto from client name" oninput="upG(${g.id},'tabName',this.value)"></div>
     </div>
     <div class="fg">
@@ -562,7 +590,7 @@ function renderGroups(){
       <input type="number" min="0" step="1" value="${g.grpFeePct}" oninput="upG(${g.id},'grpFeePct',this.value)">
     </div></div>`:''}
     <div class="fg"><label>Fee label</label>
-      <input value="${esc(g.grpFeeLabel||'Admin Fees')}" oninput="upG(${g.id},'grpFeeLabel',this.value)">
+      <input value="${esc(g.grpFeeLabel||'Monthly Service Fees')}" oninput="upG(${g.id},'grpFeeLabel',this.value)">
     </div>
     `:''}
     ${document.getElementById('chkRemarks')?.checked?`
@@ -712,7 +740,7 @@ function calcGroup(g){
     g.grpFeeFloor = td.feeFloor; g.grpFeePct = td.feePct;
   }
   const gfm = useGrpFee ? g.grpFeeMode : $('selFee').value;
-  const gfLabel = useGrpFee ? (g.grpFeeLabel||'Admin Fees') : ($('feeLabel').value||'Admin Fees');
+  const gfLabel = useGrpFee ? (g.grpFeeLabel||'Monthly Service Fees') : ($('feeLabel').value||'Monthly Service Fees');
   const fm=gfm; const fLabel=gfLabel;
   let feePerPax=0,feeIsLump=false,feeLumpTotal=0,feeFormula='',feeLabel2='';
   if(fm==='flat'){
@@ -786,7 +814,7 @@ function buildRows(g,c){
   // fees
   if(fm==='lump'){
     T('item',c.feeLabel,c.feeLumpTotal,true,payRemarks.fee||'',true);
-    T('item','Monthly Admin Fees (Per month after GST)',c.feeLumpTotal/12,true,payRemarks.fee||'');
+    T('item','Monthly Service Fees (Per month after GST)',c.feeLumpTotal/12,true,payRemarks.fee||'');
   } else if(fm!=='none'){
     T('item',c.feeLabel,c.feePerPax,true,payRemarks.fee||'',true);
   }
@@ -826,7 +854,7 @@ function buildRows(g,c){
       const first=wpVal+(c.disbPerPax+c.feePerPax)*effPax;
       const firstLabel='1st Payment: Work Pass Application Fees'+(effPax>1?' + '+effPax+' pax admin fee + '+effPax+' pax salary disbursement':' + 1 month admin fee + 1 month salary disbursement');
       T('item',firstLabel,first,true,payRemarks.first||'');
-      T('item',`Subsequent Payment: Salary Disbursement${fm!=='none'?' + Monthly Admin Fees':''}`+(note?`\n(${note})`:''),c.totalPerPax,true,payRemarks.subsequent||'',true);
+      T('item',`Subsequent Payment: Salary Disbursement${fm!=='none'?' + Monthly Service Fees':''}`+(note?`\n(${note})`:''),c.totalPerPax,true,payRemarks.subsequent||'',true);
     } else {
       T('item','1st Payment: Work Pass Application Fees',wpVal,true,payRemarks.first||'');
       const parts=[];
@@ -845,17 +873,44 @@ function buildRows(g,c){
       const upfrontSalary = up * c.disbPerPax;
       const second = upfrontFee + depAmountSt + upfrontSalary;
       T('item',`2nd Payment: ${parts.join(' + ')}`,second,true,payRemarks.second||'');
-      T('item',`Subsequent Payment: Salary Disbursement${fm!=='none'&&fm!=='lump'?' + Monthly Admin Fees':''}`+(note?`\n(${note})`:''),fm==='lump'?c.disbPerPax:c.totalPerPax,true,payRemarks.subsequent||'',true);
+      T('item',`Subsequent Payment: Salary Disbursement${fm!=='none'&&fm!=='lump'?' + Monthly Service Fees':''}`+(note?`\n(${note})`:''),fm==='lump'?c.disbPerPax:c.totalPerPax,true,payRemarks.subsequent||'',true);
     }
   } else if(pm==='deposit'){
-    T('item',`Monthly Payment: Salary Disbursement${fm!=='none'?' + Monthly Admin Fees':''}`,c.totalPerPax,true,payRemarks.monthly||'',true);
+    T('item',`Monthly Payment: Salary Disbursement${fm!=='none'?' + Monthly Service Fees':''}`,c.totalPerPax,true,payRemarks.monthly||'',true);
   }
   // optional services
   const hasSvcs=svcs.some(s=>s.name.trim());
   if(hasSvcs){
     T('blank','','',false,'');
     T('head','Optional Services','',false,'');
-    svcs.filter(s=>s.name.trim()).forEach(s=>T('item',s.name,s.rate,false,s.remark));
+    svcs.filter(s=>s.name.trim()).forEach(s=>{
+      // Rename generic "Work Pass Application/Cancellation" to match worker type
+      const typeLabel=TYPES[g.type]?.label||'Work Pass';
+      // Rename service to match worker type — simple, clean replacement
+      let svcName=s.name;
+      if(g.type!=='ep'&&g.type!=='local'){
+        // "Work Pass Application" → "Work Permit Application" / "S Pass Application" etc.
+        const prefix=typeLabel; // e.g. "Work Permit", "S Pass", "Work Permit (PRC)"
+        svcName=s.name
+          .replace(/Work Permit \(PRC\) Application/gi, prefix+' Application')
+          .replace(/Work Pass Application/gi, prefix+' Application')
+          .replace(/Work Permit Application/gi, prefix+' Application')
+          .replace(/S Pass Application/gi, prefix+' Application')
+          .replace(/Work Pass Cancellation/gi, prefix+' Cancellation')
+          .replace(/Work Permit Cancellation/gi, prefix+' Cancellation')
+          .replace(/S Pass Cancellation/gi, prefix+' Cancellation')
+          .replace(/Work Pass Renewal/gi, prefix+' Renewal')
+          .replace(/Work Permit Renewal/gi, prefix+' Renewal');
+      }
+      // Work pass application/cancellation/renewal = per pax (show pax + total)
+      const isPerPax=/application|cancellation|renewal|insurance|medical/i.test(s.name);
+      const showSvcPax=isPerPax&&effectivePax>1;
+      // Medical check up = "if any", annotate
+      const isMedical=/medical check/i.test(s.name);
+      const svcLabel=isMedical?svcName+' (if any)':svcName;
+      const svcRemark=isMedical?(s.remark?s.remark+' · $15 admin fee + actual cost':'$15 admin fee + actual check-up cost'):s.remark;
+      T('item',svcLabel,s.rate,false,svcRemark,showSvcPax);
+    });
   }
   // Disclaimer
   const disc=document.getElementById('disclaimer')?.value||'';
@@ -1071,7 +1126,7 @@ function toggleComparison(){
     ['Operational overhead per headcount', 'S$'+sampleOffice+'/pax/mth', sampleOffice===200?'Factory/worksite — includes tools, PPE, uniform, utilities, and equipment amortised per worker.':'Professional environment — includes workstation, laptop/equipment, utilities, and consumables per headcount.'],
     ['Leave liability', 'S$'+(s/26*28/12).toFixed(0)+'/mth', '14 AL + 14 SL days entitlement × daily salary rate ÷ 12 months.'],
     ['Supervisory overhead', 'S$'+((s*1.6)*0.20/Math.max(1,samplePax)).toFixed(0)+'/pax/mth', '20% of supervisor time (est. 1.6× worker salary), shared across '+samplePax+' pax in group. One supervisor covers the whole team.'],
-    ...(sampleNeedsQuota ? [['Work pass quota cost (DRC)', 'S$'+sampleQuotaCost.toFixed(0)+'/pax/mth', 'To hire each WP/S Pass, MOM requires 1 local headcount per 3 foreign workers (Dependency Ratio Ceiling, services sector). This local hire is a real cost the client bears just to unlock quota — based on Local Qualifying Salary $1,600 + CPF + SDL + WICA, divided across 3 quota slots. Via Elitez, this quota burden does not apply to the client.']] : []),
+    ...(sampleNeedsQuota ? [['Work pass quota cost (DRC)', 'S$'+sampleQuotaCost.toFixed(0)+'/pax/mth', 'MOM\'s Dependency Ratio Ceiling (services sector) allows 1 local employee to unlock up to 3 WP/S Pass slots. To hire foreign workers, the client must first employ enough qualifying locals — at minimum Local Qualifying Salary $1,600/mth + CPF + SDL + WICA (≈$1,900/mth each). This quota cost ($1,900 ÷ 3 slots = $633/WP or SP hired) is borne entirely by the direct-hiring client. Via Elitez, workers sit under Elitez\'s own quota — this burden does not apply to the client at all.']] : []),
   ];
 
   const compHtml = `
@@ -1133,6 +1188,107 @@ function toggleComparison(){
 
   document.getElementById('compareModalBody').innerHTML = compHtml;
   document.getElementById('compareModal').classList.add('show');
+}
+
+// ── Dropdown helpers ──
+function toggleDrop(id){
+  const el=document.getElementById(id);
+  const wasOpen=el.classList.contains('open');
+  document.querySelectorAll('.tbtn-drop.open').forEach(d=>d.classList.remove('open'));
+  if(!wasOpen) el.classList.add('open');
+}
+function closeDrop(id){ document.getElementById(id)?.classList.remove('open'); }
+document.addEventListener('click', e=>{
+  if(!e.target.closest('.tbtn-drop')) document.querySelectorAll('.tbtn-drop.open').forEach(d=>d.classList.remove('open'));
+});
+
+// ── Import from Excel ──
+function loadFromExcel(input){
+  const file=input.files[0]; if(!file) return;
+  const reader=new FileReader();
+  reader.onload=async e=>{
+    try{
+      if(typeof XLSX==='undefined'){
+        alert('Excel library loading, please try again in a moment.'); return;
+      }
+      const wb=XLSX.read(e.target.result,{type:'array'});
+      const result={data:{entityName:'',clientName:'',date:'',groups:[]},matched:[]};
+
+      wb.SheetNames.forEach((sheetName,si)=>{
+        const ws=wb.Sheets[sheetName];
+        const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+        if(!rows.length) return;
+
+        // Skip summary sheet
+        if(/summary/i.test(sheetName)) return;
+
+        const g={
+          type:'wp', tabName:sheetName.replace(/\s*\(.*?\)/,'').trim(),
+          pax:1, sameSalary:true,
+          grossRows:[{id:1,label:'Monthly Remuneration',val:0,remark:''}],
+          awsMode:'none', awsAmt:0, awsMonths:1, awsLabel:'Annual Wage Supplement',
+          levy:800, medical:55, wica:1.5,
+          feeOverride:false, grpFeeMode:'flat', grpFeeFlat:1000,
+          grpFeeFloor:0, grpFeePct:0, grpFeeLabel:'Monthly Service Fees',
+          hourly:false, hourlyRate:0, hoursPerMonth:0,
+          secBond:false, secBondAmount:5000, secBondFee:140,
+          remarkLevy:'',remarkMedical:'',remarkCPF:'',remarkSDL:'',remarkWICA:'',remarkAWS:'',
+          cpfOverride:false, commission:0
+        };
+
+        // Detect worker type from sheet name
+        const sn=sheetName.toLowerCase();
+        if(sn.includes('s pass')||sn.includes('spass')) { g.type='sp'; g.levy=650; g.grpFeeFlat=1800; }
+        else if(sn.includes('prc')) { g.type='wpprc'; g.levy=800; g.grpFeeFlat=1500; }
+        else if(sn.includes('ep')||sn.includes('employment pass')) { g.type='ep'; g.levy=0; g.grpFeeFlat=1800; }
+        else if(sn.includes('local')) { g.type='local'; g.levy=0; g.grpFeeFlat=255; }
+
+        // Scan rows for data
+        rows.forEach(row=>{
+          const label=String(row[0]||'').trim();
+          const val=parseFloat(String(row[1]||'').replace(/[^0-9.-]/g,''));
+          if(!label) return;
+
+          if(/monthly remuneration/i.test(label) && !isNaN(val)){
+            g.grossRows[0].val=val;
+          } else if(/levy/i.test(label) && !isNaN(val) && !/(total|skills)/i.test(label)){
+            g.levy=val;
+          } else if(/medical insurance/i.test(label) && !isNaN(val)){
+            g.medical=val;
+          } else if(/admin fee|service fee/i.test(label) && !isNaN(val)){
+            g.feeOverride=true; g.grpFeeFlat=val;
+          } else if(/pax|headcount/i.test(label) && !isNaN(val) && val>1){
+            g.pax=val; g.sameSalary=true;
+          } else if(/entity|our entity|prepared by/i.test(label) && row[1]){
+            if(!result.data.entityName) result.data.entityName=String(row[1]).trim();
+          } else if(/client/i.test(label) && row[1] && !result.data.clientName){
+            result.data.clientName=String(row[1]).trim();
+          } else if(/date/i.test(label) && row[1] && !result.data.date){
+            result.data.date=String(row[1]).trim();
+          }
+
+          // Pax from Total column: if row[2] exists as number and > row[1] and row[1]>0
+          const tot=parseFloat(String(row[2]||'').replace(/[^0-9.-]/g,''));
+          if(!isNaN(val)&&!isNaN(tot)&&val>0&&tot>val){
+            const paxCalc=Math.round(tot/val);
+            if(paxCalc>1&&paxCalc<=50&&!g._paxSet){ g.pax=paxCalc; g._paxSet=true; g.sameSalary=true; }
+          }
+        });
+
+        if(g.grossRows[0].val>0) result.data.groups.push(g);
+      });
+
+      if(!result.data.groups.length){
+        alert('Could not detect any worker groups from this Excel file.\nMake sure it was exported from this tool.'); return;
+      }
+      applyParsed(result);
+      input.value='';
+    } catch(err){
+      alert('Failed to read Excel file: '+err.message);
+      console.error(err);
+    }
+  };
+  reader.readAsArrayBuffer(file);
 }
 
 function tabLabel(g,i){
@@ -1504,7 +1660,7 @@ function parsePDFLines_OLD(lines){
   const out = {
     entityName:'', clientName:'', preparedBy:'', date:'',
     groups:[], feeMode:'none', feeFlat:0, feeFloor:295, feePct:10,
-    feeLump:0, feeLabel:'Admin Fees', payMode:'simple',
+    feeLump:0, feeLabel:'Monthly Service Fees', payMode:'simple',
     depMonths:1, upMonths:1, disclaimer:'', svcs:[]
   };
   const matched = [];
@@ -1564,8 +1720,8 @@ function parsePDFLines_OLD(lines){
       type:'wp', pax:1, sameSalary:true, tabName:'',
       grossRows:[{id:Date.now()+gi*1000, label:'Monthly Remuneration', val:0, remark:''}],
       awsMode:'none', awsAmt:0, awsLabel:'Annual Wage Supplement',
-      levy:dt.levy, medical:5.89, wica:1.5,
-      feeOverride:true, grpFeeMode:'flat', grpFeeFlat:0, grpFeeFloor:0, grpFeePct:0, grpFeeLabel:'Admin Fees',
+      levy:dt.levy, medical:55, wica:1.5,
+      feeOverride:true, grpFeeMode:'flat', grpFeeFlat:0, grpFeeFloor:0, grpFeePct:0, grpFeeLabel:'Monthly Service Fees',
       hourly:false, hourlyRate:0, hoursPerMonth:0,
       remarkLevy:'', remarkMedical:'', remarkCPF:'', remarkSDL:'', remarkWICA:'', remarkAWS:'',
       cpfOverride:false, commission:0
@@ -1637,7 +1793,7 @@ function parsePDFLines_OLD(lines){
         if(vm!==null && !feeFound && /admin fees|service fees|management fee/i.test(l)){
           feeFound=true;
           g.grpFeeMode='flat'; g.grpFeeFlat=vm;
-          g.grpFeeLabel=l.replace(/\$[\d,.]*/g,'').replace(/\(.*\)/g,'').trim()||'Admin Fees';
+          g.grpFeeLabel=l.replace(/\$[\d,.]*/g,'').replace(/\(.*\)/g,'').trim()||'Monthly Service Fees';
           if(/or.*%|whichever/i.test(l)){ g.grpFeeMode='max'; const pp=pct(l); if(pp)g.grpFeePct=pp; }
           matched.push(`Group ${gi+1}: Admin fee`);
         }
@@ -1679,7 +1835,7 @@ function parsePDFLines_OLD(lines){
 function parsePDFLines(lines){
   const out={entityName:'',clientName:'',preparedBy:'',date:'',
     groups:[],feeMode:'none',feeFlat:0,feeFloor:295,feePct:10,
-    feeLump:0,feeLabel:'Admin Fees',payMode:'simple',depMonths:1,upMonths:1,
+    feeLump:0,feeLabel:'Monthly Service Fees',payMode:'simple',depMonths:1,upMonths:1,
     disclaimer:'',svcs:[]};
   const matched=[];
   const money=str=>{const m=str.replace(/,/g,'').match(/\$?([\d]+\.?\d*)/);return m?parseFloat(m[1]):null;};
@@ -1744,8 +1900,8 @@ function parsePDFLines(lines){
     const g={type:'wp',pax:1,sameSalary:true,tabName:'',
       grossRows:[{id:Date.now()+gi*1000,label:'Monthly Remuneration',val:0,remark:''}],
       awsMode:'none',awsAmt:0,awsMonths:1,awsLabel:'Annual Wage Supplement',
-      levy:dt.levy,medical:5.89,wica:1.5,
-      feeOverride:true,grpFeeMode:'flat',grpFeeFlat:0,grpFeeFloor:0,grpFeePct:0,grpFeeLabel:'Admin Fees',
+      levy:dt.levy,medical:55,wica:1.5,
+      feeOverride:true,grpFeeMode:'flat',grpFeeFlat:0,grpFeeFloor:0,grpFeePct:0,grpFeeLabel:'Monthly Service Fees',
       hourly:false,hourlyRate:0,hoursPerMonth:0,secBond:false,secBondAmount:5000,secBondFee:140,
       remarkLevy:'',remarkMedical:'',remarkCPF:'',remarkSDL:'',remarkWICA:'',remarkAWS:'',
       cpfOverride:false,commission:0,sameSalary:true};
@@ -1827,7 +1983,7 @@ function parsePDFLines(lines){
           g.grpFeeMode=/or.*%|whichever/i.test(l)?'max':'flat';
           g.grpFeeFlat=vm;
           if(g.grpFeeMode==='max'){const pp=pct(l);if(pp)g.grpFeePct=pp;}
-          g.grpFeeLabel=l.replace(/\$[\d,.]+(\s+\d+\s+\$[\d,.]+)?/g,'').replace(/\(.*\)/,'').trim()||'Admin Fees';
+          g.grpFeeLabel=l.replace(/\$[\d,.]+(\s+\d+\s+\$[\d,.]+)?/g,'').replace(/\(.*\)/,'').trim()||'Monthly Service Fees';
           matched.push('Group '+(gi+1)+': Fee');
         }
         if(/deposit.*month/i.test(l)){const dm=l.match(/(\d+)\s*month/i);if(dm){out.depMonths=parseInt(dm[1]);out.payMode='deposit';}}
@@ -1915,7 +2071,7 @@ function applyParsed(result){
         grpFeeFlat: pg.grpFeeFlat!==undefined ? pg.grpFeeFlat : td.feeFlat,
         grpFeeFloor: pg.grpFeeFloor!==undefined ? pg.grpFeeFloor : td.feeFloor,
         grpFeePct: pg.grpFeePct!==undefined ? pg.grpFeePct : td.feePct,
-        grpFeeLabel: pg.grpFeeLabel||'Admin Fees',
+        grpFeeLabel: pg.grpFeeLabel||'Monthly Service Fees',
         remarkLevy: pg.remarkLevy||'',
         remarkMedical: pg.remarkMedical||'',
         remarkCPF: pg.remarkCPF||'',
@@ -1939,7 +2095,7 @@ function applyParsed(result){
     if(d.feeMode==='flat' && $('fFlat')) $('fFlat').value = d.feeFlat||0;
     if(d.feeMode==='max'){ if($('fFloor'))$('fFloor').value=d.feeFloor||295; if($('fPct'))$('fPct').value=d.feePct||10; }
     if(d.feeMode==='lump' && $('fLump')) $('fLump').value = d.feeLump||0;
-    if($('feeLabel')) $('feeLabel').value = d.feeLabel||'Admin Fees';
+    if($('feeLabel')) $('feeLabel').value = d.feeLabel||'Monthly Service Fees';
   } else {
     $('selFee').value = 'none';
     renderFeeFields();
