@@ -380,7 +380,7 @@ textarea{resize:vertical;line-height:1.5}
           <input id="cName" placeholder="e.g. ABC Pte Ltd" oninput="recalc();checkSecDone('client')">
         </div>
         <div class="fg">
-          <label>Date</label>
+          <label>Prepared on</label>
           <input id="cDate" type="date" oninput="recalc();checkSecDone('client')">
         </div>
         <!-- BPO extra fields -->
@@ -399,7 +399,7 @@ textarea{resize:vertical;line-height:1.5}
       <!-- AGREEMENT SECTION (BPO only) -->
       <div id="secAgreementBlock" style="display:none">
         <div class="sec-hdr" onclick="toggleSec('secAgreement')" id="secAgreementHdr" style="margin-top:8px">
-          <span class="sec-hdr-title">Agreement dates</span>
+          <span class="sec-hdr-title">Agreement period</span>
           <div class="sec-hdr-right">
             <span class="sec-summary" id="secAgreementSummary" style="display:none"></span>
             <div class="sec-done" id="secAgreementDone" style="display:none">
@@ -410,8 +410,8 @@ textarea{resize:vertical;line-height:1.5}
         </div>
         <div class="sec-body" id="secAgreement">
           <div class="r2">
-            <div class="fg"><label>Contract start date</label><input id="bpoStart" type="date" oninput="checkSecDone('agreement')"></div>
-            <div class="fg"><label>Contract end date</label><input id="bpoEnd" type="date" oninput="checkSecDone('agreement')"></div>
+            <div class="fg"><label>Agreement start date</label><input id="bpoStart" type="date" oninput="checkSecDone('agreement')"></div>
+            <div class="fg"><label>Agreement end date</label><input id="bpoEnd" type="date" oninput="checkSecDone('agreement')"></div>
           </div>
         </div>
       </div>
