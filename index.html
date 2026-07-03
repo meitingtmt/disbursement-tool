@@ -219,7 +219,7 @@ textarea{resize:vertical;line-height:1.5}
 .lock-hint{font-size:11px;color:var(--text3);margin-top:16px}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://unpkg.com/docx@8.5.0/build/index.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.js"></script>
 </head>
 <body>
 
@@ -263,10 +263,11 @@ textarea{resize:vertical;line-height:1.5}
           Export as Excel
         </div>
         <div style="height:1px;background:var(--border);margin:4px 0"></div>
-        <div class="drop-item" onclick="closeDrop('exportDrop');generateBPO()">
-          <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="2" y="1" width="10" height="12" rx="1.5"/><path d="M4 4h6M4 7h6M4 10h3"/><path d="M9 9l2 2-2 2"/></svg>
-          Generate BPO Agreement (.docx)
+        <div class="drop-item" onclick="closeDrop('exportDrop');toggleBPOModal()">
+          <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="2" y="1" width="10" height="12" rx="1.5"/><path d="M4 4h6M4 7h6M4 10h3"/></svg>
+          Preview BPO Agreement
         </div>
+
       </div>
     </div>
     <button class="tbtn why-better" onclick="toggleComparison()" id="whyBetterBtn">
@@ -297,6 +298,26 @@ textarea{resize:vertical;line-height:1.5}
       </div>
     </div>
     </div><!-- end wStep1 -->
+  </div>
+</div>
+
+<!-- ── BPO AGREEMENT MODAL ── -->
+<div class="modal" id="bpoModal" onclick="if(event.target===this)this.classList.remove('show')" style="z-index:500">
+  <div class="modal-box" style="max-width:780px;max-height:88vh;overflow-y:auto;padding:0">
+    <div style="background:var(--navy);color:#fff;padding:16px 24px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:10;border-radius:var(--radius) var(--radius) 0 0">
+      <div>
+        <div style="font-size:15px;font-weight:700">BPO Agreement Preview</div>
+        <div style="font-size:11px;color:rgba(255,255,255,.65);margin-top:2px">Review before downloading — fields highlighted in amber are incomplete</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn sm" onclick="generateBPO()" style="background:var(--orange);border-color:var(--orange);color:#fff;padding:6px 14px">
+          <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="width:12px;height:12px;margin-right:4px;vertical-align:-1px"><path d="M7 9V1M4 6l3 3 3-3M2 11h10"/></svg>
+          Download .docx
+        </button>
+        <button class="btn sm" onclick="document.getElementById('bpoModal').classList.remove('show')" style="padding:6px 14px">Close</button>
+      </div>
+    </div>
+    <div id="bpoModalBody" style="padding:32px 40px;font-family:'Georgia',serif;font-size:13px;line-height:1.8;color:#1a2533"></div>
   </div>
 </div>
 
@@ -725,7 +746,11 @@ function renderGroups(){
     </div>`:''}
     `:''}
     ${document.getElementById('chkSameFee')?.checked===false?`
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px;margin-bottom:10px">
+    ${(g.type!=='local'&&(g.depositMonths==null||g.depositMonths===0))?`<div style="background:#FFF8EC;border:1px solid #F5D98A;border-radius:6px;padding:6px 10px;font-size:11px;color:#7A5500;margin-bottom:8px;display:flex;align-items:center;gap:6px">
+      <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" width="13" height="13"><path d="M7 2L1 12h12L7 2z"/><path d="M7 6v3M7 10.5v.1"/></svg>
+      Reminder: deposit is recommended for ${TYPES[g.type].label}. Waiver requires Top Management approval.
+    </div>`:''}
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
       <div class="fg" style="margin:0">
         <label>Security deposit <span style="font-weight:400;color:var(--text3)">(months)</span></label>
         <input type="number" min="0" max="12" step="1" value="${g.depositMonths!=null?g.depositMonths:0}" oninput="upG(${g.id},'depositMonths',this.value===''?0:parseFloat(this.value));recalc()">
@@ -740,10 +765,6 @@ function renderGroups(){
         ${(g.depositIncFee===false)?`<div class="hint" style="color:#7A5500">⚠ Reminder: excluding fee from deposit requires Top Mgmt approval.</div>`:''}
       </div>
     </div>
-    ${(g.type!=='local'&&(g.depositMonths==null||g.depositMonths===0))?`<div style="background:#FFF8EC;border:1px solid #F5D98A;border-radius:6px;padding:7px 10px;font-size:11px;color:#7A5500;margin-bottom:8px;display:flex;align-items:center;gap:6px;pointer-events:none">
-      <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" width="13" height="13"><path d="M7 2L1 12h12L7 2z"/><path d="M7 6v3M7 10.5v.1"/></svg>
-      Reminder: deposit is recommended for ${TYPES[g.type].label}. Waiver requires Top Management approval.
-    </div>`:''}
     <div class="mini-sec" style="margin-top:14px">Monthly service fee for this group</div>
     <div class="r2" style="margin-bottom:6px">
       <div class="fg" style="margin:0"><label>Fee type</label>
@@ -755,7 +776,7 @@ function renderGroups(){
         </select>
       </div>
       <div class="fg" style="margin:0"><label>${g.grpFeeMode==='max'?'Min floor ($)':'Fee amount ($)'}</label>
-        <input type="number" min="0" value="${g.grpFeeMode==='max'?g.grpFeeFloor:g.grpFeeFlat}" oninput="upG(${g.id},'feeOverride',true);upG(${g.id},g.grpFeeMode==='max'?'grpFeeFloor':'grpFeeFlat',this.value);checkFeeRate(${g.id})">
+        <input type="number" min="0" value="${g.grpFeeMode==='max'?g.grpFeeFloor:g.grpFeeFlat}" oninput="upG(${g.id},'feeOverride',true);upG(${g.id},'${g.grpFeeMode==='max'?'grpFeeFloor':'grpFeeFlat'}',this.value);checkFeeRate(${g.id})">
       </div>
     </div>
     ${(()=>{
@@ -837,32 +858,76 @@ function renderPayRemarks(){
   }
 }
 
+// Payment split state: array of rows [{label, items:{deposit,oneTime,monthly,serviceFee,secBond}, svcFeeMonths}]
+let paymentSplits=[
+  {label:'1st payment', items:{deposit:true,oneTime:true,monthly:false,serviceFee:false,secBond:true}, svcFeeMonths:1},
+  {label:'Subsequent payment', items:{deposit:false,oneTime:false,monthly:true,serviceFee:true,secBond:false}, svcFeeMonths:1}
+];
+
 function renderPayFields(){
   const m=$('selPay').value;
-  $('payFields').innerHTML=m==='staged'?`
-    <div class="r2">
-      <div class="fg"><label>Deposit (months)</label>
-        <select id="pDep" onchange="recalc()">
-          <option value="0">No deposit</option><option value="1" selected>1 month</option>
-          <option value="2">2 months</option><option value="3">3 months</option>
-        </select></div>
-      <div class="fg"><label>Months billed upfront (2nd pmt)</label>
-        <select id="pUp" onchange="recalc()">
-          <option value="1" selected>1 month</option><option value="2">2 months</option>
-        </select></div>
+  if(m!=='staged'){$('payFields').innerHTML='';return;}
+  const hasPRC=groups.some(g=>g.type==='wpprc');
+  const html2=`
+    <div style="margin-top:8px">
+      <div style="display:grid;grid-template-columns:120px repeat(${hasPRC?5:4},1fr);gap:4px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text3);padding:0 0 4px;border-bottom:1px solid var(--border);margin-bottom:4px">
+        <div>Payment</div>
+        <div style="text-align:center">Deposit</div>
+        <div style="text-align:center">One-time fees</div>
+        <div style="text-align:center">Monthly salary</div>
+        <div style="text-align:center">Service fee</div>
+        ${hasPRC?'<div style="text-align:center">Security bond</div>':''}
+      </div>
+      ${paymentSplits.map((row,ri)=>`
+      <div style="display:grid;grid-template-columns:120px repeat(${hasPRC?5:4},1fr);gap:4px;align-items:center;padding:6px 0;border-bottom:1px solid #F0F2F5">
+        <div style="font-size:11.5px;font-weight:600;color:var(--navy)">${row.label}</div>
+        <div style="text-align:center"><input type="checkbox" ${row.items.deposit?'checked':''} onchange="updateSplit(${ri},'deposit',this.checked)"></div>
+        <div style="text-align:center"><input type="checkbox" ${row.items.oneTime?'checked':''} onchange="updateSplit(${ri},'oneTime',this.checked)"></div>
+        <div style="text-align:center">
+          <input type="checkbox" ${row.items.monthly?'checked':''} onchange="updateSplit(${ri},'monthly',this.checked)">
+        </div>
+        <div style="text-align:center">
+          <div style="display:flex;flex-direction:column;align-items:center;gap:2px">
+            <input type="checkbox" ${row.items.serviceFee?'checked':''} onchange="updateSplit(${ri},'serviceFee',this.checked)">
+            ${row.items.serviceFee?`<input type="number" min="1" max="24" value="${row.svcFeeMonths||1}" style="width:44px;font-size:10px;text-align:center;padding:2px" title="Months of service fee" oninput="updateSplitMonths(${ri},this.value)"><span style="font-size:9px;color:var(--text3)">mths</span>`:''}
+          </div>
+        </div>
+        ${hasPRC?`<div style="text-align:center"><input type="checkbox" ${row.items.secBond?'checked':''} onchange="updateSplit(${ri},'secBond',this.checked)"></div>`:''}
+      </div>`).join('')}
     </div>
-    <label class="chk-row" style="margin-bottom:5px"><input type="checkbox" id="depIncludeFeeSt" checked onchange="recalc()"><div><div class="chk-lbl">Include admin fees in deposit</div><div class="chk-sub">Uncheck to base deposit on salary disbursement only.</div></div></label>
-    <label class="chk-row" style="margin-bottom:5px"><input type="checkbox" id="chk1stIncludesAdminFee" onchange="recalc()"><div><div class="chk-lbl">1st payment bundles admin fee + disbursement</div></div></label>
-    <div class="fg"><label>Invoice note (shown in brackets)</label><input id="pNote" value="Invoice on the 1st of every month, 14 days credit term" oninput="recalc()"></div>`
-    :m==='deposit'?`<div class="fg"><label>Deposit (months)</label>
-        <select id="pDep2" onchange="recalc()">
-          <option value="1" selected>1 month</option><option value="2">2 months</option>
-        </select></div>
-      <label class="chk-row" style="margin-top:4px">
-        <input type="checkbox" id="depIncludeFee" checked onchange="recalc()">
-        <div><div class="chk-lbl">Include admin fees in deposit</div>
-        <div class="chk-sub">Default: deposit = (salary + admin fees) × months. Uncheck to base on salary only.</div></div>
-      </label>`:'';
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <button class="btn add sm" onclick="addPaymentSplit()" style="font-size:11px">＋ Add payment split</button>
+      ${paymentSplits.length>2?`<button class="btn sm dn" onclick="removeLastSplit()" style="font-size:11px">− Remove last</button>`:''}
+    </div>
+    <div class="fg" style="margin-top:10px"><label>Invoice note <span class="opt">(shown in brackets)</span></label>
+      <input id="pNote" value="Invoice on the 1st of every month, 14 days credit term" oninput="recalc()">
+    </div>`;
+  $('payFields').innerHTML=html2;
+}
+
+function updateSplit(ri,key,val){
+  if(!paymentSplits[ri]) return;
+  paymentSplits[ri].items[key]=val;
+  renderPayFields(); recalc();
+}
+function updateSplitMonths(ri,val){
+  if(!paymentSplits[ri]) return;
+  paymentSplits[ri].svcFeeMonths=Math.max(1,parseInt(val)||1);
+  recalc();
+}
+function addPaymentSplit(){
+  // Insert before last row (Subsequent)
+  const last=paymentSplits.pop();
+  const n=paymentSplits.length+1;
+  const suffix=n===2?'2nd':n===3?'3rd':n+'th';
+  paymentSplits.push({label:suffix+' payment',items:{deposit:false,oneTime:false,monthly:true,serviceFee:true,secBond:false},svcFeeMonths:1});
+  paymentSplits.push(last);
+  renderPayFields(); recalc();
+}
+function removeLastSplit(){
+  if(paymentSplits.length<=2) return;
+  paymentSplits.splice(paymentSplits.length-2,1);
+  renderPayFields(); recalc();
 }
 
 /* ── Services ── */
@@ -1159,7 +1224,7 @@ function recalc(){
       if(r.kind==='title'){const tCols=pax>1?(hasRemarks?5:4):(hasRemarks?3:2);return`<tr class="title"><td class="a" colspan="${tCols}">${esc(r.a)}</td></tr>`;}
       if(r.kind==='head'){
         if(pax>1){
-          return`<tr class="bordered sechead"><td class="a">${esc(r.a)}</td><td class="b">${esc(r.b||'')}</td><td class="p">Pax</td><td class="t">Total</td>${hasRemarks?'<td class="c">Remarks</td>':''}</tr>`;
+          return`<tr class="bordered sechead" style="border-top:2.5px solid #C5CED8"><td class="a">${esc(r.a)}</td><td class="b">${esc(r.b||'')}</td><td class="p">Pax</td><td class="t">Total</td>${hasRemarks?'<td class="c">Remarks</td>':''}</tr>`;
         } else {
           return`<tr class="bordered sechead"><td class="a">${esc(r.a)}</td><td class="b" colspan="${hasRemarks?1:2}">${esc(r.b||'')}</td>${hasRemarks?'<td class="c">Remarks</td>':''}</tr>`;
         }
@@ -1175,14 +1240,15 @@ function recalc(){
       if(r.kind==='meta'){
         const mCols=pax>1?(hasRemarks?5:4):(hasRemarks?3:2);
         const isEntity=r._meta==='entity';
-        return`<tr><td colspan="${mCols}" style="font-size:${isEntity?'12':'10.5'}px;font-weight:${isEntity?'700':'400'};color:${isEntity?'#0e2a47':'#5d6b7a'};border:none!important;padding:${isEntity?'2px 6px 1px':'0 6px'}">${esc(r.a)}</td></tr>`;
+        const isClient=r._meta==='client';
+        return`<tr><td colspan="${mCols}" style="font-size:${isEntity?'14':isClient?'11':'10.5'}px;font-weight:${isEntity?'700':isClient?'500':'400'};color:${isEntity?'#0e2a47':isClient?'#3a5068':'#5d6b7a'};border:none!important;padding:${isEntity?'4px 6px 2px':isClient?'0 6px 4px':'0 6px'}">${esc(r.a)}</td></tr>`;
       }
       if(pax>1){
         return`<tr class="${cls}"><td class="a">${esc(r.a)}</td><td class="b">${r.b!==''?fmtS(r.b):''}</td><td class="p"></td><td class="t"></td>${hasRemarks?`<td class="c">${esc(r.remarks||'')}</td>`:''}</tr>`;
       }
       return`<tr class="${cls}"><td class="a">${esc(r.a)}</td><td class="b" colspan="${hasRemarks?1:2}">${r.b!==''?fmtS(r.b):''}</td>${hasRemarks?`<td class="c">${esc(r.remarks||'')}</td>`:''}</tr>`;
     }).join('');
-    return`<div style="border-bottom:1px solid var(--border)"><div class="preview-tab"><span Tab: ${esc(tn)}<span class="preview-tab-stat">${g.pax} pax${g.sameSalary&&g.pax>1?' · Total: '+fmtS(c.totalPerPax*g.pax):' · per pax: '+fmtS(c.totalPerPax)}</span></div><div class="preview-body"><div class="xlt" style="padding:0"><table>${trs}</table></div></div></div>`;
+    return`<div style="border-bottom:1px solid var(--border)"><div class="preview-tab"><span>${esc(TYPES[g.type].label)}</span><span class="preview-tab-stat">${g.pax} pax · ${g.sameSalary&&g.pax>1?'Total: '+fmtS(c.totalPerPax*g.pax):'Per pax: '+fmtS(c.totalPerPax)}</span></div><div class="preview-body"><div class="xlt" style="padding:0"><table>${trs}</table></div></div></div>`;
   }).join('');
 
   // ── Summary: Total to Collect across all groups ──
@@ -1299,10 +1365,15 @@ function recalc(){
           <tbody>`;
     allOptSvcs.forEach(s=>{
       const displayRate = s.rate>0 ? fmtS(s.rate) : '<span style="color:var(--text3);font-style:italic">As charged</span>';
+      const remarkHtml = (s.remark||'').split('\n').map((line,li)=>{
+        if(!line.trim()) return '';
+        const isBullet = line.trim().startsWith('•') || line.trim().startsWith('-');
+        return `<div style="margin-top:${li===0?0:4}px;padding-left:${isBullet?'0':'0'}px">${esc(line.trim())}</div>`;
+      }).join('');
       optHtml+=`<tr style="border-top:1px solid #F2F4F7">
         <td style="padding:7px 12px">${esc(s.name)}</td>
-        <td style="padding:7px 12px;text-align:right;font-variant-numeric:tabular-nums">${displayRate}</td>
-        <td style="padding:7px 12px;font-size:11.5px;color:var(--text2)">${esc(s.remark||'')}</td>
+        <td style="padding:7px 12px;text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap">${displayRate}</td>
+        <td style="padding:7px 12px;font-size:11px;color:var(--text2);line-height:1.6">${remarkHtml||''}</td>
       </tr>`;
     });
     optHtml+=`</tbody></table>
@@ -1664,6 +1735,8 @@ async function generateBPO(){
   const endDate     = gv('bpoEnd')   ? new Date(gv('bpoEnd')).toLocaleDateString('en-SG',{day:'2-digit',month:'long',year:'numeric'}) : '<End Date>';
   const agreeDate   = gv('cDate')    ? new Date(gv('cDate')).toLocaleDateString('en-SG',{day:'2-digit',month:'long',year:'numeric'}) : '<Date>';
 
+  const fmtMoney=(n)=>'S$'+n.toLocaleString('en-SG',{minimumFractionDigits:2,maximumFractionDigits:2});
+
   // Calculate fees from groups
   const allCalcs = groups.map(g=>({g,c:calcGroup(g)}));
   const px2 = ({g}) => (g.sameSalary&&g.pax>1)?g.pax:1;
@@ -1736,7 +1809,6 @@ async function generateBPO(){
   const noBorder={style:BorderStyle.NIL};
   const noAllBorders={top:noBorder,bottom:noBorder,left:noBorder,right:noBorder};
 
-  const fmtMoney=(n)=>'S$'+n.toLocaleString('en-SG',{minimumFractionDigits:2,maximumFractionDigits:2});
 
   const doc = new Document({
     styles:{
@@ -1899,6 +1971,151 @@ async function generateBPO(){
     const safeName = (clientName||'Client').replace(/[^a-zA-Z0-9]/g,'_');
     dl(blob, 'BPO_Agreement_'+safeName+'_'+agreeDate.replace(/ /g,'_')+'.docx');
   }catch(e){ console.error(e); alert('Failed to generate BPO Agreement: '+e.message); }
+}
+
+function toggleBPOModal(){
+  const clientName  = gv('cName')     || '';
+  const clientUen   = gv('bpoClientUen')  || '';
+  const clientAddr  = gv('bpoClientAddr') || '';
+  const clientRep   = gv('bpoClientRep')  || '';
+  const clientPos   = gv('bpoClientPos')  || '';
+  const elitezName  = gv('entityName') || '';
+  const elitezUen   = gv('bpoElitezUen')  || '';
+  const elitezAddr  = gv('bpoElitezAddr') || '';
+  const elitezRep   = gv('bpoElitezRep')  || '';
+  const elitezPos   = gv('bpoElitezPos')  || '';
+  const startDate   = gv('bpoStart') ? new Date(gv('bpoStart')).toLocaleDateString('en-SG',{day:'2-digit',month:'long',year:'numeric'}) : '';
+  const endDate     = gv('bpoEnd')   ? new Date(gv('bpoEnd')).toLocaleDateString('en-SG',{day:'2-digit',month:'long',year:'numeric'}) : '';
+  const agreeDate   = gv('cDate')    ? new Date(gv('cDate')).toLocaleDateString('en-SG',{day:'2-digit',month:'long',year:'numeric'}) : '';
+
+  // Derive short form
+  function deriveShortPreview(name){
+    const s=name.replace(/(Pte\.?\s*Ltd\.?|Ltd\.?|Inc\.?|Sdn\.?\s*Bhd\.?|Corp\.?|Co\.?|Group of Companies|Holdings|Group)/gi,'').replace(/\s*[&]\s*/g,' ').replace(/\s+/g,' ').trim();
+    const w=s.split(/\s+/).filter(x=>x.length>1);
+    if(!w.length) return name.split(' ')[0]||name;
+    if(w.length===1) return w[0];
+    if(/^[A-Z]{2,4}$/.test(w[0])) return w[0];
+    const fill=new Set(['of','the','and','for','in','at','by','to','a','an']);
+    const m=w.filter(x=>!fill.has(x.toLowerCase()));
+    if(m.length>=3) return m.map(x=>x[0].toUpperCase()).join('');
+    return m[0]||w[0];
+  }
+  const manualShort = gv('bpoShortForm');
+  const E = manualShort || (elitezName ? deriveShortPreview(elitezName) : 'Elitez');
+
+  // Fee calculations
+  const fmtM=(n)=>'S$'+n.toLocaleString('en-SG',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const allC=groups.map(g=>({g,c:calcGroup(g)}));
+  const px2=({g})=>(g.sameSalary&&g.pax>1)?g.pax:1;
+  const depositTotal=allC.reduce((s,x)=>{const px=px2(x),depM=x.g.depositMonths||0;const base=x.g.depositIncFee!==false?x.c.totalPerPax:x.c.disbPerPax;return s+base*px*depM;},0);
+  const bpoExp=allC.reduce((s,x)=>s+x.c.disbPerPax*px2(x),0);
+  const svcFee=allC.reduce((s,x)=>s+x.c.feePerPax*px2(x),0);
+  const maxAG=allC.reduce((max,x)=>{const a=x.c.grossTotal*12;return a>max?a:max;},0);
+  const lomp=Math.max(7000,maxAG*0.18);
+  const lompLbl=maxAG*0.18>=7000?fmtM(lomp)+' (18% of annual gross)':'S$7,000 (minimum)';
+  const depParts=allC.map(({g})=>{const m=g.depositMonths||0;return m>0?m+' month'+(m>1?'s':'')+(TYPES[g.type]?' ('+TYPES[g.type].label+')':''):null;}).filter(Boolean);
+  const depDesc=depParts.length?depParts.join(' + '):'2 months';
+
+  // Helper: field or amber placeholder
+  const f=(val,placeholder)=>val
+    ?`<span style="font-weight:600">${esc(val)}</span>`
+    :`<span style="background:#FFF8EC;border:1px solid #F5D98A;border-radius:3px;padding:1px 6px;color:#7A5500;font-style:italic">${placeholder}</span>`;
+
+  const html2=`
+    <div style="text-align:center;border-bottom:2px solid #1A3C5E;padding-bottom:24px;margin-bottom:28px">
+      <div style="font-size:19px;font-weight:700;letter-spacing:.5px;margin-bottom:6px">BUSINESS PROCESS OUTSOURCING AGREEMENT</div>
+      <div style="font-size:13px;margin-bottom:4px">BETWEEN ${f(clientName,'&lt;Client Company Name&gt;')} AND ${f(elitezName,'&lt;Company Name&gt;')}</div>
+      <div style="font-size:12px;font-style:italic;color:#5d6b7a">Dated ${f(agreeDate,'&lt;Date&gt;')}</div>
+    </div>
+
+    <div style="margin-bottom:20px">
+      <div style="font-weight:700;margin-bottom:8px">THIS AGREEMENT is made on ${f(agreeDate,'&lt;Date&gt;')}</div>
+      <div style="font-weight:700;margin-bottom:8px">BETWEEN:</div>
+      <div style="margin-left:20px;margin-bottom:10px">
+        (A) ${f(clientName,'&lt;Client Company Name&gt;')} (Business Registration No. ${f(clientUen,'&lt;Client Company UEN No&gt;')}), a company incorporated in Singapore with its registered address at ${f(clientAddr,'&lt;Client Company Address&gt;')} (the "<strong>Client</strong>");
+      </div>
+      <div style="font-weight:700;margin-bottom:8px">AND</div>
+      <div style="margin-left:20px;margin-bottom:10px">
+        (B) ${f(elitezName,'&lt;Company Name&gt;')} (Company Registration No. ${f(elitezUen,'&lt;Company UEN No&gt;')}), a company incorporated in Singapore with its registered office at ${f(elitezAddr,'&lt;Company Address&gt;')} and its associated companies via shareholding, common shareholder or memorandum of understanding ("<strong>${esc(E)}</strong>"),
+      </div>
+      <div>(collectively the "<strong>Parties</strong>" and each a "<strong>Party</strong>").</div>
+    </div>
+
+    <div style="margin-bottom:20px">
+      <div style="font-size:14px;font-weight:700;border-bottom:1px solid #d0d8e4;padding-bottom:6px;margin-bottom:10px">3. THE SERVICES</div>
+      <div>${esc(E)} shall perform the Services in accordance with the terms and conditions set out in this Agreement. This Agreement shall commence on ${f(startDate,'&lt;Start Date&gt;')} to ${f(endDate,'&lt;End Date&gt;')}. Both Parties shall commit to discuss on the Agreement renewal terms at least 3 months prior to the end of the said Agreement.</div>
+    </div>
+
+    <div style="margin-bottom:20px">
+      <div style="font-size:14px;font-weight:700;border-bottom:1px solid #d0d8e4;padding-bottom:6px;margin-bottom:10px">6. FEES AND EXPENSES</div>
+      <div style="margin-bottom:8px"><strong>6.1</strong> The deposit shall be equivalent to <strong>${esc(depDesc)}</strong> of the service fee plus <strong>${esc(depDesc)}</strong> of Business Process Outsourcing resources expenses.</div>
+      <div style="margin-bottom:8px"><strong>6.2</strong> The Service Fees for the various Services provided are as set out in the Schedule(s) of this Agreement.</div>
+      <div><strong>6.3</strong> The Loss of Manpower Fee payable is set out in Schedule 1 of this Agreement.</div>
+    </div>
+
+    <div style="margin-bottom:20px">
+      <div style="font-size:14px;font-weight:700;border-bottom:1px solid #d0d8e4;padding-bottom:6px;margin-bottom:10px">9. NOTICES</div>
+      <table style="width:100%;font-size:12px;border-collapse:collapse">
+        <tr><td colspan="3" style="font-weight:700;padding:4px 0">${f(clientName,'&lt;Client Company Name&gt;')}</td></tr>
+        <tr><td style="width:120px;color:#5d6b7a">Address</td><td style="width:16px">:</td><td>${f(clientAddr,'&lt;Client Company Address&gt;')}</td></tr>
+        <tr><td style="color:#5d6b7a">Attention</td><td>:</td><td>${f(clientRep,'&lt;Representative Name&gt;')}, ${f(clientPos,'&lt;Position&gt;')}</td></tr>
+        <tr><td colspan="3" style="padding-top:10px;font-weight:700">${f(elitezName,'&lt;Company Name&gt;')}</td></tr>
+        <tr><td style="color:#5d6b7a">Address</td><td>:</td><td>${f(elitezAddr,'&lt;Company Address&gt;')}</td></tr>
+        <tr><td style="color:#5d6b7a">Attention</td><td>:</td><td>${f(elitezRep,'&lt;Representative Name&gt;')}, ${f(elitezPos,'&lt;Position&gt;')}</td></tr>
+      </table>
+    </div>
+
+    <div style="margin-bottom:20px">
+      <div style="font-size:14px;font-weight:700;border-bottom:1px solid #d0d8e4;padding-bottom:6px;margin-bottom:10px">SCHEDULE X — FEES AND EXPENSES</div>
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead>
+          <tr style="background:#1A3C5E;color:#fff">
+            <th style="padding:8px 12px;text-align:left;font-weight:600">Monthly Charges</th>
+            <th style="padding:8px 12px;text-align:right;font-weight:600">Fees (Before GST)</th>
+            <th style="padding:8px 12px;text-align:left;font-weight:600">Remarks</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="border-bottom:1px solid #eef0f4"><td style="padding:7px 12px">Deposit (if any)</td><td style="padding:7px 12px;text-align:right;font-weight:600">${depositTotal>0?fmtM(depositTotal):'<span style="color:#7A5500;font-style:italic">Not set</span>'}</td><td style="padding:7px 12px;font-size:11px;color:#5d6b7a">${esc(depDesc)}</td></tr>
+          <tr style="border-bottom:1px solid #eef0f4;background:#fafbfc"><td style="padding:7px 12px">BPO Resources Expenses</td><td style="padding:7px 12px;text-align:right;font-weight:600">${bpoExp>0?fmtM(bpoExp):'<span style="color:#7A5500;font-style:italic">Not calculated</span>'}</td><td style="padding:7px 12px;font-size:11px;color:#5d6b7a">Gross salary + statutory (excl. service fee)</td></tr>
+          <tr style="border-bottom:1px solid #eef0f4"><td style="padding:7px 12px">Service Fees per month</td><td style="padding:7px 12px;text-align:right;font-weight:600">${svcFee>0?fmtM(svcFee):'<span style="color:#7A5500;font-style:italic">Not set</span>'}</td><td style="padding:7px 12px"></td></tr>
+          <tr style="border-bottom:1px solid #eef0f4;background:#fafbfc"><td style="padding:7px 12px">Other Expenses per month</td><td style="padding:7px 12px;text-align:right;font-style:italic;color:#5d6b7a">As charged</td><td style="padding:7px 12px;font-size:11px;color:#5d6b7a">Additional resources agreed by Client</td></tr>
+          <tr><td style="padding:7px 12px">Loss of Manpower Fee</td><td style="padding:7px 12px;text-align:right;font-weight:600">${esc(lompLbl)}</td><td style="padding:7px 12px;font-size:11px;color:#5d6b7a">Whichever is higher — $7,000 or 18% of annual gross</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div>
+      <div style="font-size:14px;font-weight:700;border-bottom:1px solid #d0d8e4;padding-bottom:6px;margin-bottom:16px">SIGNATURES</div>
+      <table style="width:100%;font-size:12px">
+        <tr>
+          <td style="width:46%;vertical-align:top">
+            <div style="font-weight:700;margin-bottom:4px">Signed for and on behalf of</div>
+            <div style="font-weight:700;margin-bottom:16px">${f(clientName,'&lt;Client Company Name&gt;')}</div>
+            <div style="margin-bottom:10px">Signature: _______________________</div>
+            <div style="margin-bottom:6px">Name: ${f(clientRep,'&lt;Representative Name&gt;')}</div>
+            <div style="margin-bottom:6px">Position: ${f(clientPos,'&lt;Position&gt;')}</div>
+            <div>Date: _______________________</div>
+          </td>
+          <td style="width:8%"></td>
+          <td style="vertical-align:top">
+            <div style="font-weight:700;margin-bottom:4px">Signed for and on behalf of</div>
+            <div style="font-weight:700;margin-bottom:16px">${f(elitezName,'&lt;Company Name&gt;')}</div>
+            <div style="margin-bottom:10px">Signature: _______________________</div>
+            <div style="margin-bottom:6px">Name: ${f(elitezRep,'&lt;Representative Name&gt;')}</div>
+            <div style="margin-bottom:6px">Position: ${f(elitezPos,'&lt;Position&gt;')}</div>
+            <div>Date: _______________________</div>
+          </td>
+        </tr>
+      </table>
+    </div>
+
+    <div style="margin-top:24px;padding:10px 14px;background:#f0f4f8;border-radius:6px;font-size:11px;color:#5d6b7a;font-style:italic">
+      Note: Clauses 1–2, 4–8, 10–23 and Schedule X service descriptions, SLAs and KPIs use standard agreement text and require completion before execution.
+    </div>`;
+
+  document.getElementById('bpoModalBody').innerHTML=html2;
+  document.getElementById('bpoModal').classList.add('show');
 }
 
 function toggleDrop(id){
@@ -2309,7 +2526,7 @@ function showWStep2(){
 }
 
 // ── Default services by worker type ──
-const CONVERSION_REMARKS = "Rates for duration into assignment:\n• Less than 6 months: 100% of avg monthly salary\n• 6 to 12 months: 80% of avg monthly salary\n• More than 12 months: 60% of avg monthly salary";
+const CONVERSION_REMARKS = "Rates based on duration into assignment:\n• Less than 6 months: 100% of average monthly salary\n• 6 to 12 months: 80% of average monthly salary\n• More than 12 months: 60% of average monthly salary";
 
 function defaultSvcsForTypes(types){
   const hasForeign = types.some(t=>['wp','wpprc','sp','ep'].includes(t));
@@ -2353,7 +2570,7 @@ function defaultSvcsForTypes(types){
   if(hasEP) svcsNew.push({id:++id,name:'Education & Accreditation Verification',rate:288,remark:'Employment Pass only'});
 
   // Conversion / Loss of Manpower Fee — all
-  svcsNew.push({id:++id,name:'Conversion / Loss of Manpower Fee',rate:7000,remark:'$7,000 or 18% of annual gross salary, whichever higher.\n'+CONVERSION_REMARKS});
+  svcsNew.push({id:++id,name:'Conversion / Loss of Manpower Fee',rate:7000,remark:'$7,000 or 18% of annual gross salary, whichever higher.\n\n'+CONVERSION_REMARKS});
 
   return svcsNew;
 }
