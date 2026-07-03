@@ -184,6 +184,8 @@ textarea{resize:vertical;line-height:1.5}
 /* ── modal ── */
 .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:400;display:none;align-items:center;justify-content:center}
 .modal-bg.show{display:flex}
+.modal{position:fixed;inset:0;background:rgba(11,36,64,.55);z-index:500;display:none;align-items:center;justify-content:center;backdrop-filter:blur(2px)}
+.modal.show{display:flex}
 .modal-box{background:var(--surface);border-radius:10px;padding:24px 28px;max-width:460px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,.18)}
 .modal-h{font-size:15px;font-weight:700;color:var(--navy);margin-bottom:10px;letter-spacing:-.1px}
 
@@ -2021,7 +2023,7 @@ function toggleBPOModal(){
     ?`<span style="font-weight:600">${esc(val)}</span>`
     :`<span style="background:#FFF8EC;border:1px solid #F5D98A;border-radius:3px;padding:1px 6px;color:#7A5500;font-style:italic">${placeholder}</span>`;
 
-  const html2=`
+  const bpoHtml=`
     <div style="text-align:center;border-bottom:2px solid #1A3C5E;padding-bottom:24px;margin-bottom:28px">
       <div style="font-size:19px;font-weight:700;letter-spacing:.5px;margin-bottom:6px">BUSINESS PROCESS OUTSOURCING AGREEMENT</div>
       <div style="font-size:13px;margin-bottom:4px">BETWEEN ${f(clientName,'&lt;Client Company Name&gt;')} AND ${f(elitezName,'&lt;Company Name&gt;')}</div>
@@ -2114,7 +2116,7 @@ function toggleBPOModal(){
       Note: Clauses 1–2, 4–8, 10–23 and Schedule X service descriptions, SLAs and KPIs use standard agreement text and require completion before execution.
     </div>`;
 
-  document.getElementById('bpoModalBody').innerHTML=html2;
+  document.getElementById('bpoModalBody').innerHTML=bpoHtml;
   document.getElementById('bpoModal').classList.add('show');
 }
 
