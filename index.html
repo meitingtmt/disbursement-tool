@@ -116,6 +116,19 @@ textarea{resize:vertical;line-height:1.5}
 .pass-badge.local{background:#E6F4EC;color:#145230;border:1px solid #A0D0B0}
 .grp-body{padding:14px 16px}
 .mini-sec{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--navy2);margin:16px 0 10px;padding-bottom:6px;border-bottom:2px solid var(--border)}
+/* ── details card sections ── */
+.sec-hdr{display:flex;align-items:center;justify-content:space-between;cursor:pointer;padding:10px 0 10px 12px;border-left:3px solid var(--orange);margin-bottom:0;user-select:none}
+.sec-hdr-title{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--navy)}
+.sec-hdr-right{display:flex;align-items:center;gap:8px}
+.sec-summary{font-size:11.5px;color:var(--text2);max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sec-done{width:16px;height:16px;border-radius:50%;background:var(--green);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.sec-done svg{width:9px;height:9px;stroke:#fff;stroke-width:2.5}
+.sec-chevron{color:var(--text3);transition:transform .2s;flex-shrink:0}
+.sec-body{padding:12px 0 4px 15px;border-left:2px solid #EEF0F4;margin-left:1px}
+.sec-body .fg label{font-size:11.5px;font-weight:600;color:var(--navy);margin-bottom:5px}
+.bpo-toggle{display:flex;align-items:center;gap:8px;padding:10px 12px;background:#F7F9FC;border:1px dashed var(--border2);border-radius:8px;cursor:pointer;margin-top:8px;font-size:12px;color:var(--text2);font-weight:500}
+.bpo-toggle:hover{background:#EEF3FA;border-color:var(--navy3);color:var(--navy)}
+.bpo-toggle.active{background:#EEF3FA;border-color:var(--orange);border-style:solid;color:var(--navy)}
 .auto-val{font-variant-numeric:tabular-nums;font-size:12.5px;background:var(--surface2);border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:7px 10px;color:var(--text2)}
 
 /* ── services ── */
@@ -206,6 +219,7 @@ textarea{resize:vertical;line-height:1.5}
 .lock-hint{font-size:11px;color:var(--text3);margin-top:16px}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://unpkg.com/docx@8.5.0/build/index.umd.js"></script>
 </head>
 <body>
 
@@ -247,6 +261,11 @@ textarea{resize:vertical;line-height:1.5}
         <div class="drop-item" id="xlsBtn" onclick="closeDrop('exportDrop');exportExcelSafe()">
           <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 1H3a1 1 0 00-1 1v10a1 1 0 001 1h8a1 1 0 001-1V6L8 1z"/><path d="M8 1v5h5M5 8l4 4M9 8l-4 4"/></svg>
           Export as Excel
+        </div>
+        <div style="height:1px;background:var(--border);margin:4px 0"></div>
+        <div class="drop-item" onclick="closeDrop('exportDrop');generateBPO()">
+          <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="2" y="1" width="10" height="12" rx="1.5"/><path d="M4 4h6M4 7h6M4 10h3"/><path d="M9 9l2 2-2 2"/></svg>
+          Generate BPO Agreement (.docx)
         </div>
       </div>
     </div>
@@ -304,16 +323,106 @@ textarea{resize:vertical;line-height:1.5}
   <div class="form-col">
 
     <div class="card">
-      <div class="card-title">Client details</div>
-      <div class="r2">
-        <div class="fg"><label>Our entity name</label><input id="entityName" value="Elitez Group of Companies" placeholder="e.g. Elitez Pte Ltd" oninput="recalc()"></div>
-        <div class="fg"><label>Prepared by</label><input id="cBy" placeholder="Your name" oninput="recalc()"></div>
+      <div class="card-title">Details</div>
+
+      <!-- OUR COMPANY SECTION -->
+      <div class="sec-hdr" onclick="toggleSec('secOurs')" id="secOursHdr">
+        <span class="sec-hdr-title">Our company</span>
+        <div class="sec-hdr-right">
+          <span class="sec-summary" id="secOursSummary" style="display:none"></span>
+          <div class="sec-done" id="secOursDone" style="display:none">
+            <svg viewBox="0 0 10 10" fill="none"><path d="M2 5l2.5 2.5 3.5-4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <svg class="sec-chevron" id="secOursChevron" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" width="13" height="13"><path d="M3 5l4 4 4-4"/></svg>
+        </div>
       </div>
-      <div class="r2">
-        <div class="fg"><label>Client name</label><input id="cName" placeholder="e.g. ABC Pte Ltd" oninput="recalc()"></div>
-        <div class="fg"><label>Date</label><input id="cDate" type="date" oninput="recalc()"></div>
+      <div class="sec-body" id="secOurs">
+        <div class="fg">
+          <label>Entity full name</label>
+          <input id="entityName" value="Elitez Pte Ltd" placeholder="e.g. Elitez Pte Ltd" oninput="recalc();updateShortFormHint();checkSecDone('ours')">
+        </div>
+        <div class="fg">
+          <label>Prepared by</label>
+          <input id="cBy" placeholder="Your name" oninput="recalc();checkSecDone('ours')">
+        </div>
+        <!-- BPO extra fields -->
+        <div id="bpoOursFields" style="display:none">
+          <div class="r2">
+            <div class="fg"><label>UEN No.</label><input id="bpoElitezUen" placeholder="e.g. 201234567Z"></div>
+            <div class="fg"><label>Registered address</label><input id="bpoElitezAddr" placeholder="e.g. 3 HarbourFront Place, S099254"></div>
+          </div>
+          <div class="r2">
+            <div class="fg"><label>Representative name</label><input id="bpoElitezRep" placeholder="e.g. Jane Lee"></div>
+            <div class="fg"><label>Position / title</label><input id="bpoElitezPos" placeholder="e.g. Director"></div>
+          </div>
+          <div class="fg">
+            <label>Short form in agreement <span class="opt">(auto-derived — override if needed)</span></label>
+            <input id="bpoShortForm" placeholder="e.g. Elitez, DHC" oninput="updateShortFormHint()">
+            <div class="hint" id="bpoShortFormHint" style="color:var(--navy2)"></div>
+          </div>
+        </div>
       </div>
-      <label class="chk-row"><input type="checkbox" id="chkBGST" checked onchange="recalc()"><div><div class="chk-lbl">Show "Rate (Before GST)" as column header</div></div></label>
+
+      <!-- CLIENT SECTION -->
+      <div class="sec-hdr" onclick="toggleSec('secClient')" id="secClientHdr" style="margin-top:8px">
+        <span class="sec-hdr-title">Client</span>
+        <div class="sec-hdr-right">
+          <span class="sec-summary" id="secClientSummary" style="display:none"></span>
+          <div class="sec-done" id="secClientDone" style="display:none">
+            <svg viewBox="0 0 10 10" fill="none"><path d="M2 5l2.5 2.5 3.5-4" stroke-linecap="round" stroke-linejoin="round" stroke="white" stroke-width="2.5"/></svg>
+          </div>
+          <svg class="sec-chevron" id="secClientChevron" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" width="13" height="13"><path d="M3 5l4 4 4-4"/></svg>
+        </div>
+      </div>
+      <div class="sec-body" id="secClient">
+        <div class="fg">
+          <label>Client full name</label>
+          <input id="cName" placeholder="e.g. ABC Pte Ltd" oninput="recalc();checkSecDone('client')">
+        </div>
+        <div class="fg">
+          <label>Date</label>
+          <input id="cDate" type="date" oninput="recalc();checkSecDone('client')">
+        </div>
+        <!-- BPO extra fields -->
+        <div id="bpoClientFields" style="display:none">
+          <div class="r2">
+            <div class="fg"><label>UEN No.</label><input id="bpoClientUen" placeholder="e.g. 202312345A"></div>
+            <div class="fg"><label>Registered address</label><input id="bpoClientAddr" placeholder="e.g. 1 Business Park, S123456"></div>
+          </div>
+          <div class="r2">
+            <div class="fg"><label>Representative name</label><input id="bpoClientRep" placeholder="e.g. John Tan"></div>
+            <div class="fg"><label>Position / title</label><input id="bpoClientPos" placeholder="e.g. Director"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- AGREEMENT SECTION (BPO only) -->
+      <div id="secAgreementBlock" style="display:none">
+        <div class="sec-hdr" onclick="toggleSec('secAgreement')" id="secAgreementHdr" style="margin-top:8px">
+          <span class="sec-hdr-title">Agreement dates</span>
+          <div class="sec-hdr-right">
+            <span class="sec-summary" id="secAgreementSummary" style="display:none"></span>
+            <div class="sec-done" id="secAgreementDone" style="display:none">
+              <svg viewBox="0 0 10 10" fill="none"><path d="M2 5l2.5 2.5 3.5-4" stroke-linecap="round" stroke-linejoin="round" stroke="white" stroke-width="2.5"/></svg>
+            </div>
+            <svg class="sec-chevron" id="secAgreementChevron" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" width="13" height="13"><path d="M3 5l4 4 4-4"/></svg>
+          </div>
+        </div>
+        <div class="sec-body" id="secAgreement">
+          <div class="r2">
+            <div class="fg"><label>Contract start date</label><input id="bpoStart" type="date" oninput="checkSecDone('agreement')"></div>
+            <div class="fg"><label>Contract end date</label><input id="bpoEnd" type="date" oninput="checkSecDone('agreement')"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- BPO TOGGLE -->
+      <div class="bpo-toggle" id="bpoToggle" onclick="toggleBPOMode()" style="margin-top:12px">
+        <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" width="14" height="14"><rect x="2" y="1" width="10" height="12" rx="1.5"/><path d="M4 4h6M4 7h6M4 10h3"/></svg>
+        <span id="bpoToggleLabel">+ Add BPO Agreement details</span>
+      </div>
+
+      <label class="chk-row" style="margin-top:12px"><input type="checkbox" id="chkBGST" checked onchange="recalc()"><div><div class="chk-lbl">Show "Rate (Before GST)" as column header</div></div></label>
       <input type="checkbox" id="chkRemarks" checked style="display:none">
     </div>
 
@@ -377,6 +486,7 @@ textarea{resize:vertical;line-height:1.5}
         </div>
       </div>
       <div id="gList"></div>
+      <div id="addMoreBtns" style="display:none;margin-top:6px;display:flex;flex-wrap:wrap;gap:6px"></div>
     </div>
 
     <div class="card">
@@ -969,10 +1079,20 @@ function buildRows(g,c){
     T('item',`Monthly Payment: Salary Disbursement${fm!=='none'?' + Monthly Service Fees':''}`,c.totalPerPax,true,payRemarks.monthly||'',true);
   }
   // optional services
-  // ── Split svcs into required one-time and optional ──
-  const isRequired = s => /application|security bond.*admin|medical check/i.test(s.name);
-  const requiredSvcs = svcs.filter(s=>s.name.trim()&&isRequired(s));
-  const optionalSvcs = svcs.filter(s=>s.name.trim()&&!isRequired(s));
+  // ── Services: only render on first group to avoid repetition ──
+  const isFirstGroup = !groups.length || groups[0].id === g.id;
+  const isRequired = s => /application|security bond.*admin|medical check/i.test(s.name)
+    && !/appeal/i.test(s.name);
+  // Filter required services relevant to THIS group's worker type
+  const requiredSvcs = isFirstGroup ? svcs.filter(s=>{
+    if(!s.name.trim()) return false;
+    if(!isRequired(s)) return false;
+    // Security bond admin — only for wpprc
+    if(/security bond.*admin/i.test(s.name) && g.type!=='wpprc') return false;
+    // EP verification — only for ep (but it's in optional, not required, so just filter out)
+    return true;
+  }) : [];
+  const optionalSvcs = []; // Optional services go in Summary tab only
 
   function renderSvcRow(s){
     const typeLabel=TYPES[g.type]?.label||'Work Pass';
@@ -1157,6 +1277,43 @@ function recalc(){
     $('prvArea').innerHTML += sumHtml;
   }
 
+  // ── Other Services (If Applicable) — shown once, after all group tables ──
+  const isRequired2 = s => /application|security bond.*admin|medical check/i.test(s.name) && !/appeal/i.test(s.name);
+  const allOptSvcs = svcs.filter(s=>s.name.trim()&&!isRequired2(s));
+  if(allOptSvcs.length){
+    const bGSTsum = $('chkBGST')?.checked!==false;
+    let optHtml=`<div style="border-top:1px solid var(--border);margin-top:4px">
+      <div class="preview-tab" style="background:#153960">
+        <span>Other Services (If Applicable)</span>
+        <span class="preview-tab-stat">Situational / one-off charges</span>
+      </div>
+      <div class="preview-body">
+        <table style="width:100%;border-collapse:collapse;font-size:12.5px">
+          <thead>
+            <tr style="background:#F2F5F9">
+              <th style="padding:7px 12px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--navy)">Service</th>
+              <th style="padding:7px 12px;text-align:right;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--navy)">${bGSTsum?'Rate (Before GST)':'Rate'}</th>
+              <th style="padding:7px 12px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--navy)">Remarks</th>
+            </tr>
+          </thead>
+          <tbody>`;
+    allOptSvcs.forEach(s=>{
+      const displayRate = s.rate>0 ? fmtS(s.rate) : '<span style="color:var(--text3);font-style:italic">As charged</span>';
+      optHtml+=`<tr style="border-top:1px solid #F2F4F7">
+        <td style="padding:7px 12px">${esc(s.name)}</td>
+        <td style="padding:7px 12px;text-align:right;font-variant-numeric:tabular-nums">${displayRate}</td>
+        <td style="padding:7px 12px;font-size:11.5px;color:var(--text2)">${esc(s.remark||'')}</td>
+      </tr>`;
+    });
+    optHtml+=`</tbody></table>
+        <div style="font-size:10px;color:var(--text3);margin-top:10px;font-style:italic">
+          These charges are situational and will be invoiced separately when applicable.
+        </div>
+      </div>
+    </div>`;
+    $('prvArea').innerHTML += optHtml;
+  }
+
   }
 
 function toggleComparison(){
@@ -1180,13 +1337,24 @@ function toggleComparison(){
     const superSal     = salary * 1.6;
     const superCostTotal = superSal * 0.20;
     const superCost    = superCostTotal / Math.max(1, px);
-    // Quota cost: WP/WP(PRC)/SP require local headcount to unlock hiring quota (Dependency Ratio Ceiling)
-    //   Services sector DRC = 1 local : 3 WP/SP (per MOM, effective 1 Jan 2026)
-    //   Cost = (1/3) of a Local Qualifying Salary headcount (LQS $1,600 + CPF 17% + SDL + WICA)
+    // Quota cost (services sector DRC, MOM 2026):
+    // The binding constraint depends on what OTHER worker types exist in the same table:
+    // - If S Pass only → 10% sub-quota applies → 90/10 = 9× local cost (~$17,100/pax)
+    // - If WP(PRC) only → 8% sub-quota applies → 92/8 = 11.5× (~$21,850/pax)
+    // - If mixed WP+SP or WP+PRC → shared 35% DRC → 65/35 = 1.857× (~$3,529/pax)
     const LQS = 1600;
     const lqsCpf = LQS*0.17, lqsSdl = Math.min(Math.max(LQS*0.0025,2),11.25), lqsWica = LQS*0.015;
-    const localHeadcountCost = LQS + lqsCpf + lqsSdl + lqsWica; // ≈ $1,900/mth
-    const quotaCost = ['wp','wpprc','sp'].includes(g.type) ? localHeadcountCost / 3 : 0;
+    const localHeadcountCost = LQS + lqsCpf + lqsSdl + lqsWica; // $1,900/mth
+    const allTypes = allCalcs2.map(x=>x.g.type);
+    const hasWP = allTypes.some(t=>t==='wp');
+    const hasWPPRC = allTypes.some(t=>t==='wpprc');
+    const hasSP = allTypes.some(t=>t==='sp');
+    const spOnly = hasSP && !hasWP && !hasWPPRC;
+    const prcOnly = hasWPPRC && !hasWP && !hasSP;
+    const quotaCost = !['wp','wpprc','sp'].includes(g.type) ? 0
+                    : g.type==='sp'    && spOnly  ? localHeadcountCost*(90/10)
+                    : g.type==='wpprc' && prcOnly ? localHeadcountCost*(92/8)
+                    : localHeadcountCost*(65/35); // mixed or WP-only → shared 35% DRC
     const hiddenTotal  = training + attrition + hrAdmin + officeEquip + leaveCost + superCost + quotaCost;
     const directPax    = disbPax + hiddenTotal;
     const savingPax     = directPax - elitezPax;
@@ -1206,7 +1374,13 @@ function toggleComparison(){
     const office=['wp','wpprc'].includes(g.type)?200:500;
     const superShared=(salary*1.6)*0.20;
     const LQS=1600; const localHC=LQS+LQS*0.17+Math.min(Math.max(LQS*0.0025,2),11.25)+LQS*0.015;
-    const quota=['wp','wpprc','sp'].includes(g.type)?localHC/3:0;
+    const allT=allCalcs2.map(x=>x.g.type);
+    const spOnly2=allT.includes('sp')&&!allT.includes('wp')&&!allT.includes('wpprc');
+    const prcOnly2=allT.includes('wpprc')&&!allT.includes('wp')&&!allT.includes('sp');
+    const quota=!['wp','wpprc','sp'].includes(g.type)?0
+      :g.type==='sp'&&spOnly2?localHC*(90/10)
+      :g.type==='wpprc'&&prcOnly2?localHC*(92/8)
+      :localHC*(65/35);
     const hiddenPerPax=salary*0.125 + salary/12 + 100 + office + (salary/26)*(28/12) + superShared/Math.max(1,px) + quota;
     return s+(c.disbPerPax+hiddenPerPax)*px;
   },0);
@@ -1223,7 +1397,12 @@ function toggleComparison(){
   const sampleNeedsQuota = ['wp','wpprc','sp'].includes(sampleType);
   const sampleLQS = 1600;
   const sampleLocalHC = sampleLQS + sampleLQS*0.17 + Math.min(Math.max(sampleLQS*0.0025,2),11.25) + sampleLQS*0.015;
-  const sampleQuotaCost = sampleLocalHC/3;
+  const allSampleTypes = allCalcs2.map(x=>x.g.type);
+  const spOnlyS = sampleType==='sp' && !allSampleTypes.includes('wp') && !allSampleTypes.includes('wpprc');
+  const prcOnlyS = sampleType==='wpprc' && !allSampleTypes.includes('wp') && !allSampleTypes.includes('sp');
+  const sampleQuotaCost = spOnlyS ? sampleLocalHC*(90/10)
+    : prcOnlyS ? sampleLocalHC*(92/8)
+    : sampleLocalHC*(65/35);
 
   const legendRows = [
     ['Training & onboarding', 'S$'+(s*0.125).toFixed(0)+'/mth', '12.5% of salary — 1.5 months onboarding cost amortised over 12 months. Covers training, safety briefings, senior staff shadowing time.'],
@@ -1232,7 +1411,13 @@ function toggleComparison(){
     ['Operational overhead per headcount', 'S$'+sampleOffice+'/pax/mth', sampleOffice===200?'Factory/worksite — includes tools, PPE, uniform, utilities, and equipment amortised per worker.':'Professional environment — includes workstation, laptop/equipment, utilities, and consumables per headcount.'],
     ['Leave liability', 'S$'+(s/26*28/12).toFixed(0)+'/mth', '14 AL + 14 SL days entitlement × daily salary rate ÷ 12 months.'],
     ['Supervisory overhead', 'S$'+((s*1.6)*0.20/Math.max(1,samplePax)).toFixed(0)+'/pax/mth', '20% of supervisor time (est. 1.6× worker salary), shared across '+samplePax+' pax in group. One supervisor covers the whole team.'],
-    ...(sampleNeedsQuota ? [['Work pass quota cost (DRC)', 'S$'+sampleQuotaCost.toFixed(0)+'/pax/mth', 'MOM\'s Dependency Ratio Ceiling (services sector) allows 1 local employee to unlock up to 3 WP/S Pass slots. To hire foreign workers, the client must first employ enough qualifying locals — at minimum Local Qualifying Salary $1,600/mth + CPF + SDL + WICA (≈$1,900/mth each). This quota cost ($1,900 ÷ 3 slots = $633/WP or SP hired) is borne entirely by the direct-hiring client. Via Elitez, workers sit under Elitez\'s own quota — this burden does not apply to the client at all.']] : []),
+    ...(sampleNeedsQuota ? [['Work pass quota cost (DRC)', 'S$'+sampleQuotaCost.toFixed(0)+'/pax/mth',
+        spOnlyS
+          ? 'S Pass only: 10% sub-quota of total workforce. For every 1 S Pass, 9 locals needed (LQS $1,600 + CPF + SDL + WICA ≈ $1,900/mth). Cost = $1,900 × 9 = $17,100/pax/mth. If mixed with WP, cost drops to $3,529 as both share the 35% DRC pool. Via Elitez, this does not apply.'
+          : prcOnlyS
+          ? 'WP(PRC) only: 8% PRC sub-quota. For every 1 PRC WP, 11.5 locals needed. Cost = $1,900 × 11.5 = $21,850/pax/mth. If mixed with other WP, cost drops to $3,529. Via Elitez, this does not apply.'
+          : 'Services DRC 35% (WP + S Pass combined). For every 1 WP/SP hired, ~1.86 qualifying locals needed at LQS $1,600/mth (≈$1,900 total). Cost = $1,900 × (65÷35) ≈ $3,529/pax/mth. Via Elitez, workers sit under Elitez quota — this burden does not apply to the client.'
+      ]] : []),,,,,
   ];
 
   const compHtml = `
@@ -1286,7 +1471,17 @@ function toggleComparison(){
       <div style="font-size:10px;color:var(--text3);margin-top:12px;line-height:1.6;font-style:italic">
         Note: Hidden cost figures are industry benchmark estimates for illustrative purposes. Actual costs vary by company, industry, and headcount. Statutory figures are per MOM rates.
       </div>
-      <div style="text-align:right;margin-top:14px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px">
+        <div style="display:flex;gap:8px">
+          <button class="btn sm" onclick="printComparison()" style="padding:7px 14px;background:var(--orange);border-color:var(--orange);color:#fff">
+            <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="width:12px;height:12px;margin-right:4px;vertical-align:-1px"><path d="M3 5V2h8v3M3 9H1V5h12v4h-2M3 9v3h8V9M5 11h4"/></svg>
+            Print / Save PDF
+          </button>
+          <button class="btn sm" onclick="downloadComparisonExcel()" style="padding:7px 14px">
+            <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="width:12px;height:12px;margin-right:4px;vertical-align:-1px"><path d="M8 1H3a1 1 0 00-1 1v10a1 1 0 001 1h8a1 1 0 001-1V6L8 1z"/><path d="M8 1v5h5M5 8l4 4M9 8l-4 4"/></svg>
+            Download Excel
+          </button>
+        </div>
         <button class="btn sm" onclick="document.getElementById('compareModal').classList.remove('show')" style="padding:7px 16px">Close</button>
       </div>
     </div>
@@ -1326,6 +1521,384 @@ function setSameFee(val){
   document.getElementById('btnSameFeeY')?.classList.toggle('active',val);
   document.getElementById('btnSameFeeN')?.classList.toggle('active',!val);
   renderFeeFields(); renderPayRemarks(); recalc();
+}
+
+function updateShortFormHint(){
+  const name = document.getElementById('entityName')?.value||'';
+  const manual = document.getElementById('bpoShortForm')?.value||'';
+  const hint = document.getElementById('bpoShortFormHint');
+  if(!hint) return;
+  if(manual.trim()){
+    hint.textContent = 'Will use: "'+manual.trim()+'"';
+  } else if(name){
+    // inline derive for hint
+    function deriveHint(n){
+      const s=n.replace(/\b(Pte\.?\s*Ltd\.?|Ltd\.?|Inc\.?|Sdn\.?\s*Bhd\.?|Corp\.?|Co\.?|Group of Companies|Holdings|Group|&|and)\b/gi,'').replace(/\s+/g,' ').trim();
+      const w=s.split(/\s+/).filter(x=>x.length>1);
+      if(!w.length) return n.split(' ')[0];
+      if(w.length===1) return w[0];
+      if(/^[A-Z]{2,4}$/.test(w[0])) return w[0];
+      const fill=new Set(['of','the','and','for','in','at','by','to','a','an']);
+      const m=w.filter(x=>!fill.has(x.toLowerCase()));
+      if(m.length>=3) return m.map(x=>x[0].toUpperCase()).join('');
+      return m[0]||w[0];
+    }
+    hint.textContent = 'Auto-derived: "'+deriveHint(name)+'" — override above if incorrect';
+  }
+}
+
+function toggleSec(id){
+  const body=document.getElementById(id);
+  const chevron=document.getElementById(id+'Chevron');
+  if(!body) return;
+  const isOpen=body.style.display!=='none';
+  body.style.display=isOpen?'none':'';
+  if(chevron) chevron.style.transform=isOpen?'rotate(-90deg)':'';
+}
+
+function checkSecDone(sec){
+  if(sec==='ours'){
+    const name=(document.getElementById('entityName')?.value||'').trim();
+    const by=(document.getElementById('cBy')?.value||'').trim();
+    const done=name.length>0&&by.length>0;
+    const sumEl=document.getElementById('secOursSummary');
+    const doneEl=document.getElementById('secOursDone');
+    if(sumEl){ sumEl.textContent=name||(by?'Incomplete':''); sumEl.style.display=done?'':'none'; }
+    if(doneEl) doneEl.style.display=done?'flex':'none';
+    // Auto-collapse when both filled and user moves away
+  } else if(sec==='client'){
+    const name=(document.getElementById('cName')?.value||'').trim();
+    const date=(document.getElementById('cDate')?.value||'').trim();
+    const done=name.length>0&&date.length>0;
+    const sumEl=document.getElementById('secClientSummary');
+    const doneEl=document.getElementById('secClientDone');
+    if(sumEl){ sumEl.textContent=name; sumEl.style.display=done?'':'none'; }
+    if(doneEl) doneEl.style.display=done?'flex':'none';
+  } else if(sec==='agreement'){
+    const start=(document.getElementById('bpoStart')?.value||'').trim();
+    const end=(document.getElementById('bpoEnd')?.value||'').trim();
+    const done=start.length>0&&end.length>0;
+    const sumEl=document.getElementById('secAgreementSummary');
+    const doneEl=document.getElementById('secAgreementDone');
+    if(sumEl){
+      const fmt=d=>d?new Date(d).toLocaleDateString('en-SG',{day:'2-digit',month:'short',year:'numeric'}):'';
+      sumEl.textContent=done?fmt(start)+' – '+fmt(end):'';
+      sumEl.style.display=done?'':'none';
+    }
+    if(doneEl) doneEl.style.display=done?'flex':'none';
+  }
+}
+
+// Auto-collapse section on blur if done
+function autoCollapse(sec,bodyId){
+  setTimeout(()=>{
+    const body=document.getElementById(bodyId);
+    if(!body||body.style.display==='none') return;
+    // Check if focus moved outside
+    const active=document.activeElement;
+    if(body.contains(active)) return;
+    checkSecDone(sec);
+    const done=document.getElementById(bodyId.replace('sec','sec')+'Done')?.style.display==='flex'||
+      document.getElementById('sec'+sec.charAt(0).toUpperCase()+sec.slice(1)+'Done')?.style.display==='flex';
+  },200);
+}
+
+let bpoMode=false;
+function toggleBPOMode(){
+  bpoMode=!bpoMode;
+  // Show/hide BPO extra fields
+  ['bpoOursFields','bpoClientFields','secAgreementBlock'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el) el.style.display=bpoMode?'':'none';
+  });
+  const toggle=document.getElementById('bpoToggle');
+  const label=document.getElementById('bpoToggleLabel');
+  if(toggle) toggle.classList.toggle('active',bpoMode);
+  if(label) label.textContent=bpoMode?'− Hide BPO Agreement details':'+ Add BPO Agreement details';
+  // Expand agreement section when BPO mode on
+  if(bpoMode){
+    const agr=document.getElementById('secAgreement');
+    const chv=document.getElementById('secAgreementChevron');
+    if(agr) agr.style.display='';
+    if(chv) chv.style.transform='';
+  }
+}
+
+function toggleBPO(){ toggleBPOMode(); }
+
+function gv(id){ return (document.getElementById(id)?.value||'').trim(); }
+
+async function generateBPO(){
+  if(typeof docx==='undefined'){ alert('docx library loading, please try again in a moment.'); return; }
+
+  const clientName  = gv('cName')     || '<Client Company Name>';
+  const clientUen   = gv('bpoClientUen')  || '<Client Company UEN No>';
+  const clientAddr  = gv('bpoClientAddr') || '<Client Company Address>';
+  const clientRep   = gv('bpoClientRep')  || '<Client Representative Name>';
+  const clientPos   = gv('bpoClientPos')  || '<Position>';
+  const elitezName  = gv('entityName') || '<Company Name>';
+  const elitezUen   = gv('bpoElitezUen')  || '<Company UEN No>';
+  const elitezAddr  = gv('bpoElitezAddr') || '<Company Address>';
+  const elitezRep   = gv('bpoElitezRep')  || '<Company Representative Name>';
+  const elitezPos   = gv('bpoElitezPos')  || '<Position>';
+
+  // Derive short form from entity name
+  function deriveShortForm(name){
+    const stripped = name
+      .replace(/\b(Pte\.?\s*Ltd\.?|Ltd\.?|Inc\.?|Sdn\.?\s*Bhd\.?|Corp\.?|Co\.?|Group of Companies|Holdings|Group)\b/gi,'')
+      .replace(/\s*[&]\s*/g,' ')
+      .replace(/\s+/g,' ').trim();
+    const words = stripped.split(/\s+/).filter(w=>w.length>1);
+    if(words.length===0) return name.split(' ')[0];
+    if(words.length===1) return words[0];
+    if(/^[A-Z]{2,4}$/.test(words[0])) return words[0];
+    const fillers = new Set(['of','the','and','for','in','at','by','to','a','an']);
+    const meaningful = words.filter(w=>!fillers.has(w.toLowerCase()));
+    if(meaningful.length>=3) return meaningful.map(w=>w[0].toUpperCase()).join('');
+    return meaningful[0]||words[0];
+  }
+  const manualShort = gv('bpoShortForm');
+  const elitezShort = manualShort || deriveShortForm(elitezName);
+  const E = elitezShort;
+  const startDate   = gv('bpoStart') ? new Date(gv('bpoStart')).toLocaleDateString('en-SG',{day:'2-digit',month:'long',year:'numeric'}) : '<Start Date>';
+  const endDate     = gv('bpoEnd')   ? new Date(gv('bpoEnd')).toLocaleDateString('en-SG',{day:'2-digit',month:'long',year:'numeric'}) : '<End Date>';
+  const agreeDate   = gv('cDate')    ? new Date(gv('cDate')).toLocaleDateString('en-SG',{day:'2-digit',month:'long',year:'numeric'}) : '<Date>';
+
+  // Calculate fees from groups
+  const allCalcs = groups.map(g=>({g,c:calcGroup(g)}));
+  const px2 = ({g}) => (g.sameSalary&&g.pax>1)?g.pax:1;
+
+  // Deposit = sum of (salary+statutory+fee) × deposit months per group
+  const depositTotal = allCalcs.reduce((s,x)=>{
+    const px=px2(x), depM=x.g.depositMonths||0;
+    const depBase=x.g.depositIncFee!==false?x.c.totalPerPax:x.c.disbPerPax;
+    return s+depBase*px*depM;
+  },0);
+
+  // BPO Resources Expenses = gross salary + statutory obligations (excl. service fee)
+  const bpoExpenses = allCalcs.reduce((s,x)=>s+x.c.disbPerPax*px2(x),0);
+
+  // Service fees = service fee component only
+  const serviceFeeTotal = allCalcs.reduce((s,x)=>s+x.c.feePerPax*px2(x),0);
+
+  // Grand monthly total (expenses + fees)
+  const monthlyTotal = bpoExpenses + serviceFeeTotal;
+
+  // Loss of Manpower Fee — highest annual gross salary across groups as reference
+  const maxAnnualGross = allCalcs.reduce((max,x)=>{
+    const annual = x.c.grossTotal * 12;
+    return annual > max ? annual : max;
+  }, 0);
+  const lossOfManpower18pct = maxAnnualGross * 0.18;
+  const lossOfManpowerFee = Math.max(7000, lossOfManpower18pct);
+  const lompLabel = lossOfManpower18pct >= 7000
+    ? fmtMoney(lossOfManpowerFee)+' (18% of annual gross)'
+    : 'S$7,000 (minimum)';
+
+  const {Document,Paragraph,TextRun,Table,TableRow,TableCell,WidthType,BorderStyle,AlignmentType,
+         HeadingLevel,PageOrientation,convertInchesToTwip,ShadingType,UnderlineType,
+         VerticalAlign,TableLayoutType} = docx;
+
+  const NAVY='1A3C5E', LIGHT='F2F5F9';
+  const normalFont={font:'Calibri',size:22};
+  const boldFont={font:'Calibri',size:22,bold:true};
+
+  const p=(text,opts={})=>new Paragraph({
+    children:[new TextRun({text,font:'Calibri',size:opts.size||22,bold:opts.bold||false,
+      italics:opts.italic||false,underline:opts.underline?{type:UnderlineType.SINGLE}:undefined,
+      color:opts.color||undefined})],
+    alignment:opts.align||AlignmentType.JUSTIFIED,
+    spacing:{after:opts.after!==undefined?opts.after:120,before:opts.before||0},
+    heading:opts.heading||undefined,
+    indent:opts.indent?{left:720}:undefined
+  });
+
+  const bold=(text,opts={})=>p(text,{...opts,bold:true});
+  const gap=()=>p('',{after:0});
+
+  // Helper: paragraph with mixed runs
+  const mp=(runs,opts={})=>new Paragraph({
+    children:runs.map(r=>new TextRun({font:'Calibri',size:22,...r})),
+    alignment:opts.align||AlignmentType.JUSTIFIED,
+    spacing:{after:opts.after!==undefined?opts.after:120,before:opts.before||0}
+  });
+
+  const cellP=(text,opts={})=>new TableCell({
+    children:[new Paragraph({children:[new TextRun({text,font:'Calibri',size:22,bold:opts.bold||false})],
+      alignment:opts.align||AlignmentType.LEFT,spacing:{after:60}})],
+    width:opts.width?{size:opts.width,type:WidthType.DXA}:undefined,
+    shading:opts.shade?{type:ShadingType.CLEAR,color:'auto',fill:LIGHT}:undefined,
+    verticalAlign:VerticalAlign.CENTER,
+    margins:{top:80,bottom:80,left:120,right:120}
+  });
+
+  const thinBorder={style:BorderStyle.SINGLE,size:4,color:'CCCCCC'};
+  const noBorder={style:BorderStyle.NIL};
+  const noAllBorders={top:noBorder,bottom:noBorder,left:noBorder,right:noBorder};
+
+  const fmtMoney=(n)=>'S$'+n.toLocaleString('en-SG',{minimumFractionDigits:2,maximumFractionDigits:2});
+
+  const doc = new Document({
+    styles:{
+      default:{
+        document:{run:{font:'Calibri',size:22}},
+        heading1:{run:{font:'Calibri',size:26,bold:true,color:NAVY},paragraph:{spacing:{before:240,after:120}}},
+        heading2:{run:{font:'Calibri',size:22,bold:true},paragraph:{spacing:{before:200,after:80}}}
+      }
+    },
+    sections:[{
+      properties:{page:{size:{width:11906,height:16838},margin:{top:1440,bottom:1440,left:1800,right:1440}}},
+      children:[
+        // Cover
+        gap(),gap(),gap(),
+        new Paragraph({children:[new TextRun({text:'BUSINESS PROCESS OUTSOURCING AGREEMENT',font:'Calibri',size:32,bold:true,color:NAVY})],alignment:AlignmentType.CENTER,spacing:{after:200}}),
+        new Paragraph({children:[new TextRun({text:'BETWEEN ',font:'Calibri',size:22,bold:true}),new TextRun({text:clientName,font:'Calibri',size:22,bold:true}),new TextRun({text:' AND ',font:'Calibri',size:22,bold:true}),new TextRun({text:elitezName,font:'Calibri',size:22,bold:true})],alignment:AlignmentType.CENTER,spacing:{after:160}}),
+        new Paragraph({children:[new TextRun({text:'Dated ',font:'Calibri',size:22,italics:true}),new TextRun({text:agreeDate,font:'Calibri',size:22,bold:true,italics:true})],alignment:AlignmentType.CENTER,spacing:{after:0}}),
+        new Paragraph({children:[new TextRun({text:'',font:'Calibri'})],pageBreakBefore:true,spacing:{after:0}}),
+
+        // Parties
+        bold('THIS AGREEMENT is made on '+agreeDate,{after:160}),
+        bold('BETWEEN:',{after:80}),
+        mp([{text:clientName,bold:true},{text:' (Business Registration No. '},{text:clientUen,bold:true},{text:'), a company incorporated in Singapore with its registered address at '},{text:clientAddr,bold:true},{text:' (the "'},{ text:'Client',bold:true},{text:'");'}],{after:120,indent:true}),
+        p('AND',{bold:true,after:80}),
+        mp([{text:elitezName,bold:true},{text:' (Company Registration No. '},{text:elitezUen,bold:true},{text:'), a company incorporated in Singapore with its registered office at '},{text:elitezAddr,bold:true},{text:' and its associated companies via shareholding, common shareholder or memorandum of understanding ("'},{ text:E,bold:true},{text:'"),'}],{after:160,indent:true}),
+        p('(collectively the "Parties" and each a "Party").',{after:240}),
+
+        // Whereas
+        bold('WHEREAS:',{after:80}),
+        p('Elitez is engaged in the business of providing business processing outsourcing ("BPO") services, subject to the terms and conditions set out in this Agreement;',{after:80,indent:true}),
+        p('The Client and/or his nominee(s) is desirous of engaging Elitez to provide the Services (as defined below) to the Client, subject to the terms and conditions set out in this Agreement.',{after:240,indent:true}),
+        bold('IT IS HEREBY AGREED as follows:',{after:200}),
+
+        // Clause 1
+        new Paragraph({text:'1.     DEFINITIONS AND INTERPRETATION',heading:HeadingLevel.HEADING_1,spacing:{before:200,after:120}}),
+        p('[Definitions retained — refer to standard agreement text]',{italic:true,color:'888888',after:200}),
+
+        // Clause 2
+        new Paragraph({text:`2.     ENGAGEMENT OF ${E}`,heading:HeadingLevel.HEADING_1,spacing:{before:200,after:120}}),
+        p(`The Client hereby appoints and engages ${E} to provide the BPO Services, and ${E} hereby accepts such appointment, upon the terms and subject to the conditions set out in this Agreement.`,{after:200}),
+
+        // Clause 3
+        new Paragraph({text:'3.     THE SERVICES',heading:HeadingLevel.HEADING_1,spacing:{before:200,after:120}}),
+        p(`${E} shall perform the Services in accordance with the terms and conditions set out in this Agreement and shall exercise reasonable skill, care and diligence in providing the Services. ${E} shall provide such additional services (related to the Services) as may be reasonably required by the Client.`,{after:80}),
+        mp([{text:'This Agreement shall commence on '},{text:startDate,bold:true},{text:' to '},{text:endDate,bold:true},{text:'.'}],{after:80}),
+        p('Both Parties shall commit to discuss on the Agreement renewal terms at least 3 months prior to the end of the said Agreement.',{after:200}),
+
+        // Clause 4-7 (summarised)
+        new Paragraph({text:'4.     UNDERTAKINGS BY THE PARTIES',heading:HeadingLevel.HEADING_1,spacing:{before:200,after:120}}),
+        p('[Refer to standard agreement terms — Clauses 4.1 to 4.10 apply]',{italic:true,color:'888888',after:200}),
+        new Paragraph({text:'5.     REPRESENTATIONS AND WARRANTIES',heading:HeadingLevel.HEADING_1,spacing:{before:200,after:120}}),
+        p('[Refer to standard agreement terms]',{italic:true,color:'888888',after:200}),
+
+        // Clause 6 - Fees
+        new Paragraph({text:'6.     FEES AND EXPENSES',heading:HeadingLevel.HEADING_1,spacing:{before:200,after:120}}),
+        (()=>{
+          // Build deposit description from actual group deposit months
+          const depParts = allCalcs.map(({g,c})=>{
+            const px=(g.sameSalary&&g.pax>1)?g.pax:1;
+            const m=g.depositMonths||0;
+            return m>0?m+' month'+(m>1?'s':'')+' ('+TYPES[g.type].label+', '+px+' pax)':null;
+          }).filter(Boolean);
+          const depDesc = depParts.length ? depParts.join(' + ') : '2 months';
+          return mp([
+            {text:'6.1   Deposit Requirements and Adjustments: The deposit shall be equivalent to '},
+            {text:depDesc,bold:true},
+            {text:' of the service fee plus '},
+            {text:depDesc,bold:true},
+            {text:' of Business Process Outsourcing resources expenses. Should adjustments to the deposit be necessary—whether due to salary increments, deductions from manpower terminations, or other relevant factors—the Client agrees to top up the deposit to the required level, or receive a refund of any surplus, as applicable.'}
+          ],{after:80});
+        })(),
+        p('6.2   The Service Fees for the various Services provided are as set out in the Schedule(s) of this Agreement.',{after:80}),
+        p('6.3   The Loss of Manpower Fee payable is set out in Schedule 1 of this Agreement.',{after:80}),
+        p('6.4   The Client agrees to pay the Service Fees within 15 days from the date of receipt of the relevant invoice.',{after:200}),
+
+        // Clauses 7-23 summarised
+        new Paragraph({text:'7–23.  GENERAL TERMS',heading:HeadingLevel.HEADING_1,spacing:{before:200,after:120}}),
+        p('[Clauses 7 through 23 — Termination, Confidentiality, Notices, Governing Law etc. — refer to standard agreement text]',{italic:true,color:'888888',after:200}),
+
+        // Notices table
+        new Paragraph({text:'9.     NOTICES',heading:HeadingLevel.HEADING_1,spacing:{before:200,after:120}}),
+        new Table({
+          width:{size:9200,type:WidthType.DXA},
+          columnWidths:[2200,400,6600],
+          rows:[
+            new TableRow({children:[
+              new TableCell({children:[bold(clientName,{after:60})],columnSpan:3,borders:noAllBorders,margins:{top:80,bottom:40,left:0,right:0}})
+            ]}),
+            new TableRow({children:[
+              cellP('Address',{width:2200}),cellP(':',{width:400}),cellP(clientAddr,{width:6600})
+            ]}),
+            new TableRow({children:[
+              cellP('Attention',{width:2200}),cellP(':',{width:400}),cellP(clientRep+', '+clientPos,{width:6600})
+            ]}),
+            new TableRow({children:[new TableCell({children:[gap()],columnSpan:3,borders:noAllBorders})]}),
+            new TableRow({children:[
+              new TableCell({children:[bold(elitezName,{after:60})],columnSpan:3,borders:noAllBorders,margins:{top:80,bottom:40,left:0,right:0}})
+            ]}),
+            new TableRow({children:[
+              cellP('Address',{width:2200}),cellP(':',{width:400}),cellP(elitezAddr,{width:6600})
+            ]}),
+            new TableRow({children:[
+              cellP('Attention',{width:2200}),cellP(':',{width:400}),cellP(elitezRep+', '+elitezPos,{width:6600})
+            ]})
+          ]
+        }),
+
+        gap(),gap(),
+
+        // Signature block
+        new Paragraph({text:'SCHEDULE X – SERVICES AND RESPONSIBILITY',heading:HeadingLevel.HEADING_1,spacing:{before:400,after:120}}),
+        p('With respect to this Agreement, the Client shall pay Elitez the following Fees and Expenses for the following services listed below:',{after:160}),
+        bold('FEES AND EXPENSES',{after:80}),
+
+        // Fees table
+        new Table({
+          width:{size:9200,type:WidthType.DXA},
+          columnWidths:[4600,2200,2400],
+          rows:[
+            new TableRow({children:[
+              new TableCell({children:[new Paragraph({children:[new TextRun({text:'Monthly Charges',font:'Calibri',size:22,bold:true})],spacing:{after:60}})],shading:{type:ShadingType.CLEAR,color:'auto',fill:NAVY},margins:{top:80,bottom:80,left:120,right:120}}),
+              new TableCell({children:[new Paragraph({children:[new TextRun({text:'Fees (Before GST)',font:'Calibri',size:22,bold:true,color:'FFFFFF'})],alignment:AlignmentType.RIGHT,spacing:{after:60}})],shading:{type:ShadingType.CLEAR,color:'auto',fill:NAVY},margins:{top:80,bottom:80,left:120,right:120}}),
+              new TableCell({children:[new Paragraph({children:[new TextRun({text:'Remarks',font:'Calibri',size:22,bold:true,color:'FFFFFF'})],spacing:{after:60}})],shading:{type:ShadingType.CLEAR,color:'auto',fill:NAVY},margins:{top:80,bottom:80,left:120,right:120}})
+            ]}),
+            new TableRow({children:[cellP('Deposit (if any)',{width:4600}),cellP(depositTotal>0?fmtMoney(depositTotal):'S$XX,XXX',{width:2200}),cellP(depositTotal>0?'Based on '+allCalcs.map(x=>(x.g.depositMonths||0)+' mth × '+TYPES[x.g.type].label).join(', '):'',{width:2400})]}),
+            new TableRow({children:[cellP('Business Process Outsourcing Resources Expenses',{width:4600}),cellP(bpoExpenses>0?fmtMoney(bpoExpenses):'As charged',{width:2200}),cellP('Gross salary + statutory obligations (levy, medical, SDL, WICA, CPF)',{width:2400})]}),
+            new TableRow({children:[cellP('Service Fees per month',{width:4600}),cellP(serviceFeeTotal>0?fmtMoney(serviceFeeTotal):'S$XX,XXX',{width:2200}),cellP('',{width:2400})]}),
+            new TableRow({children:[cellP('Other Expenses per month',{width:4600}),cellP('As charged',{width:2200}),cellP('Additional resources agreed by Client',{width:2400})]}),
+            new TableRow({children:[cellP('Loss of Manpower Fee (whenever applicable)',{width:4600}),cellP(lompLabel,{width:2200}),cellP('Whichever is higher — $7,000 or 18% of annual gross salary',{width:2400})]}),
+          ]
+        }),
+
+        gap(),gap(),
+
+        // Signature
+        new Paragraph({children:[new TextRun({text:'',font:'Calibri'})],pageBreakBefore:true,spacing:{after:0}}),
+        p('IN WITNESS WHEREOF, the Parties have executed this Agreement as of the date first written above.',{after:400}),
+
+        new Table({
+          width:{size:9200,type:WidthType.DXA},
+          columnWidths:[4400,400,4400],
+          rows:[
+            new TableRow({children:[
+              new TableCell({children:[bold('Signed for and on behalf of',{after:40}),bold(clientName,{after:200}),p('Signature: ___________________________',{after:120}),p('Name: '+clientRep,{after:80}),p('Position: '+clientPos,{after:80}),p('Date: ___________________________',{after:0})],borders:noAllBorders}),
+              new TableCell({children:[gap()],borders:noAllBorders}),
+              new TableCell({children:[bold('Signed for and on behalf of',{after:40}),bold(elitezName,{after:200}),p('Signature: ___________________________',{after:120}),p('Name: '+elitezRep,{after:80}),p('Position: '+elitezPos,{after:80}),p('Date: ___________________________',{after:0})],borders:noAllBorders})
+            ]})
+          ]
+        }),
+
+        gap(),
+        new Paragraph({children:[new TextRun({text:'Note: Schedule X service descriptions, SLAs, and KPIs require manual completion before execution.',font:'Calibri',size:18,italics:true,color:'888888'})],spacing:{after:0}})
+      ]
+    }]
+  });
+
+  try{
+    const buf = await docx.Packer.toBuffer(doc);
+    const blob = new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'});
+    const safeName = (clientName||'Client').replace(/[^a-zA-Z0-9]/g,'_');
+    dl(blob, 'BPO_Agreement_'+safeName+'_'+agreeDate.replace(/ /g,'_')+'.docx');
+  }catch(e){ console.error(e); alert('Failed to generate BPO Agreement: '+e.message); }
 }
 
 function toggleDrop(id){
@@ -1764,13 +2337,14 @@ function defaultSvcsForTypes(types){
   }
 
   // Work Pass Application Appeal
-  if(hasForeign) svcsNew.push({id:++id,name:'Work Pass Application Appeal',rate:160,remark:''});
+  // Appeal goes in optional services section
 
   // Cancellation — $80 for all
   if(hasForeign) svcsNew.push({id:++id,name:'Work Pass Cancellation',rate:80,remark:'All pass types'});
+  if(hasForeign) svcsNew.push({id:++id,name:'Work Pass Application Appeal',rate:160,remark:''});
 
   // Medical Check Up
-  if(hasForeign) svcsNew.push({id:++id,name:'Medical Check Up (if any)',rate:0,remark:'As charged + $15 admin fee'});
+  if(hasForeign) svcsNew.push({id:++id,name:'Medical Check Up',rate:0,remark:'As charged + $15 admin fee'});
 
   // Security Bond Admin Fee — WP PRC only
   if(hasPRC) svcsNew.push({id:++id,name:'Security Bond (Admin Fee)',rate:300,remark:'Work Permit (PRC) only'});
@@ -1792,6 +2366,210 @@ function rebuildDefaultSvcs(){
   svcs=defaultSvcsForTypes(activeTypes);
   sid=svcs.length;
   renderSvcs(); recalc();
+}
+
+function printComparison(){
+  const body = document.getElementById('compareModalBody')?.innerHTML;
+  if(!body) return;
+  const clientName = $('cName')?.value || 'Client';
+  const date = new Date().toLocaleDateString('en-SG',{day:'2-digit',month:'short',year:'numeric'});
+  const win = window.open('','_blank','width=900,height=700');
+  win.document.write(`<!DOCTYPE html>
+<html><head><meta charset="UTF-8">
+<title>Why Elitez — Cost Comparison</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Inter',sans-serif;font-size:12px;color:#1A2533;padding:32px 40px;max-width:900px;margin:0 auto}
+  h1{font-size:18px;font-weight:800;color:#0B2440;margin-bottom:4px}
+  .sub{font-size:12px;color:#5A6878;margin-bottom:24px}
+  table{width:100%;border-collapse:collapse;margin-bottom:16px;font-size:11.5px}
+  th{background:#F2F5F9;padding:7px 10px;text-align:left;font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:#0B2440}
+  th:not(:first-child){text-align:right}
+  td{padding:6px 10px;border-top:1px solid #EEF0F4}
+  td:not(:first-child){text-align:right;font-variant-numeric:tabular-nums}
+  .red{color:#C03030;font-weight:600}
+  .green{color:#1A6B42;font-weight:600}
+  .navy{color:#0B2440;font-weight:700}
+  .banner{background:#0B2440;color:#fff;border-radius:8px;padding:14px 18px;display:flex;justify-content:space-between;align-items:center;margin:16px 0}
+  .banner-amt{font-size:18px;font-weight:800}
+  .banner-pct{background:#E8820A;color:#fff;font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px}
+  .legend-lbl{font-weight:600;font-size:11.5px}
+  .legend-val{color:#E8820A;font-weight:700;font-variant-numeric:tabular-nums}
+  .note{font-size:10px;color:#8A97A6;font-style:italic;margin-top:12px}
+  .header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;padding-bottom:16px;border-bottom:2px solid #E8820A}
+  .wm{font-size:16px;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:#0B2440}
+  .wm-t{color:#E8820A}
+  @media print{body{padding:20px}button{display:none}}
+</style>
+</head><body>
+<div class="header">
+  <div>
+    <div class="wm">ELI<span class="wm-t">T</span>EZ</div>
+    <div style="font-size:10px;color:#5A6878;margin-top:2px">Internal Sales Reference — Cost Comparison</div>
+  </div>
+  <div style="text-align:right;font-size:11px;color:#5A6878">
+    <div style="font-weight:600;color:#0B2440">${esc(clientName)}</div>
+    <div>Generated: ${date}</div>
+  </div>
+</div>
+${body}
+<div class="note" style="margin-top:20px;border-top:1px solid #EEF0F4;padding-top:12px">
+  INTERNAL USE ONLY — For Elitez sales reference. Not to be shared externally without management approval.<br>
+  Hidden cost figures are industry benchmark estimates. Actual costs vary by company size, industry, and headcount.
+</div>
+</body></html>`);
+  win.document.close();
+  setTimeout(()=>win.print(), 600);
+}
+
+function downloadComparisonExcel(){
+  if(typeof ExcelJS==='undefined'){ alert('Excel library loading, please try again.'); return; }
+  const allCalcs2 = groups.map(g=>({g, c:calcGroup(g)}));
+  if(!allCalcs2.length){ alert('No worker groups to export.'); return; }
+  const paxFmt2 = g => (g.sameSalary&&g.pax>1)?g.pax:1;
+  const totalPax2 = allCalcs2.reduce((s,{g})=>s+paxFmt2(g),0);
+
+  (async()=>{
+    try{
+      const wb = new ExcelJS.Workbook();
+      const ws = wb.addWorksheet('Cost Comparison');
+      const clientName = $('cName')?.value||'Client';
+      const date = new Date().toLocaleDateString('en-SG',{day:'2-digit',month:'short',year:'numeric'});
+
+      const navy={argb:'FF0B2440'}, orange={argb:'FFE8820A'}, white={argb:'FFFFFFFF'};
+      const red={argb:'FFC03030'}, green={argb:'FF1A6B42'};
+      const lightGray={argb:'FFF2F5F9'}, border={style:'thin',color:{argb:'FFDDE3EC'}};
+      const allBorder={top:border,bottom:border,left:border,right:border};
+      const baseFont={name:'Calibri',size:11};
+
+      ws.columns=[{width:36},{width:18},{width:18},{width:16}];
+
+      // Title
+      ws.mergeCells('A1:D1');
+      const t=ws.getCell('A1');
+      t.value='Why Elitez? — Cost Comparison';
+      t.font={...baseFont,size:16,bold:true,color:white};
+      t.fill={type:'pattern',pattern:'solid',fgColor:navy};
+      t.alignment={vertical:'middle',horizontal:'left'};
+      ws.getRow(1).height=32;
+
+      ws.mergeCells('A2:D2');
+      const s=ws.getCell('A2');
+      s.value=`${clientName} · Generated ${date} · For internal Elitez sales reference only`;
+      s.font={...baseFont,size:10,italic:true,color:{argb:'FF5A6878'}};
+      s.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFF7F8FA'}};
+      ws.getRow(2).height=18;
+
+      ws.getRow(3).height=8;
+
+      // Header row
+      const hdr=ws.getRow(4);
+      ['Worker Group','Direct Hire / mth','Via Elitez / mth','Monthly Saving'].forEach((h,i)=>{
+        const c=hdr.getCell(i+1);
+        c.value=h; c.font={...baseFont,bold:true,color:white};
+        c.fill={type:'pattern',pattern:'solid',fgColor:navy};
+        c.alignment={horizontal:i===0?'left':'right',vertical:'middle'};
+        c.border=allBorder;
+      });
+      ws.getRow(4).height=20;
+
+      let row=5;
+      let grandDirect=0, grandElitez=0;
+
+      allCalcs2.forEach(({g,c})=>{
+        const px=paxFmt2(g);
+        const salary=c.grossTotal;
+        const disbPax=c.disbPerPax;
+        const elitezPax=c.totalPerPax;
+        const allTypes=allCalcs2.map(x=>x.g.type);
+        const spOnly=g.type==='sp'&&!allTypes.includes('wp')&&!allTypes.includes('wpprc');
+        const prcOnly=g.type==='wpprc'&&!allTypes.includes('wp')&&!allTypes.includes('sp');
+        const LQS=1600; const lhc=LQS+LQS*0.17+Math.min(Math.max(LQS*0.0025,2),11.25)+LQS*0.015;
+        const training=salary*0.125, attrition=salary/12, hrAdmin=100;
+        const office=['wp','wpprc'].includes(g.type)?200:500;
+        const leave=(salary/26)*(28/12);
+        const superCostTotal=(salary*1.6)*0.20;
+        const superCost=superCostTotal/Math.max(1,px);
+        const quota=!['wp','wpprc','sp'].includes(g.type)?0:spOnly?lhc*(90/10):prcOnly?lhc*(92/8):lhc*(65/35);
+        const hidden=training+attrition+hrAdmin+office+leave+superCost+quota;
+        const directPax=disbPax+hidden;
+        const saving=(directPax-elitezPax)*px;
+        grandDirect+=directPax*px; grandElitez+=elitezPax*px;
+
+        const r=ws.getRow(row++);
+        const grpLabel=(g.tabName.trim()||TYPES[g.type].label)+' ('+px+' pax)';
+        [grpLabel, directPax*px, elitezPax*px, saving].forEach((v,i)=>{
+          const cell=r.getCell(i+1);
+          cell.value=v; cell.border=allBorder; cell.font={...baseFont};
+          cell.alignment={horizontal:i===0?'left':'right'};
+          if(i===1){cell.font={...baseFont,color:red};cell.numFmt='"S$"#,##0.00';}
+          if(i===2){cell.font={...baseFont,color:green};cell.numFmt='"S$"#,##0.00';}
+          if(i===3){cell.font={...baseFont,bold:true};cell.numFmt='"S$"#,##0.00';
+            cell.font.color=saving>=0?green:red;}
+        });
+      });
+
+      if(allCalcs2.length>1){
+        const tr=ws.getRow(row++);
+        ['Grand Total',grandDirect,grandElitez,grandDirect-grandElitez].forEach((v,i)=>{
+          const cell=tr.getCell(i+1);
+          cell.value=v; cell.border=allBorder;
+          cell.fill={type:'pattern',pattern:'solid',fgColor:lightGray};
+          cell.font={...baseFont,bold:true};
+          cell.alignment={horizontal:i===0?'left':'right'};
+          if(i>0) cell.numFmt='"S$"#,##0.00';
+        });
+      }
+
+      row++;
+      // Hidden cost breakdown
+      ws.mergeCells(`A${row}:D${row}`);
+      const hh=ws.getCell(`A${row}`);
+      hh.value='How hidden costs are estimated (per pax/mth)';
+      hh.font={...baseFont,bold:true,color:white};
+      hh.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF153960'}};
+      row++;
+
+      const s2=allCalcs2[0]?.c.grossTotal||0;
+      const sType=allCalcs2[0]?.g.type||'wp';
+      const sOff=['wp','wpprc'].includes(sType)?200:500;
+      const allT2=allCalcs2.map(x=>x.g.type);
+      const spO=sType==='sp'&&!allT2.includes('wp')&&!allT2.includes('wpprc');
+      const LQS2=1600; const lhc2=LQS2+LQS2*0.17+Math.min(Math.max(LQS2*0.0025,2),11.25)+LQS2*0.015;
+      const qCost=spO?lhc2*(90/10):lhc2*(65/35);
+
+      const legendItems=[
+        ['Training & onboarding','S$'+(s2*0.125).toFixed(0)+'/mth','12.5% of salary amortised over 12 months'],
+        ['Attrition / re-hire risk','S$'+(s2/12).toFixed(0)+'/mth','1× monthly salary as re-hire cost ÷ 12'],
+        ['HR & payroll admin','S$100/pax/mth','Payroll, leave management, MOM submissions'],
+        ['Operational overhead','S$'+sOff+'/pax/mth',sOff===200?'Factory/worksite environment':'Professional office environment'],
+        ['Leave liability','S$'+(s2/26*28/12).toFixed(0)+'/mth','14 AL + 14 SL days × daily salary ÷ 12'],
+        ['Supervisory overhead','S$'+((s2*1.6)*0.20).toFixed(0)+'/grp/mth','20% of supervisor time, shared across pax'],
+        ['Work pass quota cost','S$'+qCost.toFixed(0)+'/pax/mth','DRC cost — does not apply via Elitez'],
+      ];
+
+      legendItems.forEach(([label,val,note])=>{
+        const r2=ws.getRow(row++);
+        [label,val,note,''].forEach((v,i)=>{
+          const cell=r2.getCell(i+1);
+          cell.value=v; cell.font={...baseFont,size:10};
+          cell.border={top:{style:'thin',color:{argb:'FFF0F2F5'}},bottom:{style:'thin',color:{argb:'FFF0F2F5'}},left:border,right:border};
+          if(i===1){cell.font={...baseFont,size:10,bold:true,color:orange};cell.alignment={horizontal:'center'};}
+          if(i===2) ws.mergeCells(`C${row-1}:D${row-1}`);
+        });
+      });
+
+      row++;
+      ws.mergeCells(`A${row}:D${row}`);
+      ws.getCell(`A${row}`).value='INTERNAL USE ONLY — Not to be shared externally without management approval. Benchmark estimates only.';
+      ws.getCell(`A${row}`).font={...baseFont,size:9,italic:true,color:{argb:'FF8A97A6'}};
+
+      const buf=await wb.xlsx.writeBuffer();
+      dl(new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),
+        fn('xlsx').replace('Disbursement','Cost-Comparison'));
+    }catch(e){ console.error(e); alert('Export failed: '+e.message); }
+  })();
 }
 
 function checkFeeRate(gid){
@@ -1861,7 +2639,7 @@ function toggleFormPick(type){
     groups=groups.filter(g=>g.type!==type);
   }
   rebuildDefaultSvcs();
-  renderGroups(); recalc();
+  renderGroups(); renderAddMoreBtns(); recalc();
 }
 
 // Keep picker tiles in sync when groups change externally (e.g. after PDF import)
@@ -1870,6 +2648,41 @@ function syncFormPicker(){
     const el=document.getElementById('fpick_'+type);
     if(el) el.classList.toggle('selected', groups.some(g=>g.type===type));
   });
+  renderAddMoreBtns();
+}
+
+function addAnotherGroup(type){
+  const dt=TYPES[type];
+  groups.push({
+    id:++gid, type, tabName:'', pax:1, sameSalary:true,
+    grossRows:[{id:1,label:'Basic Salary',val:0,formula:'',remark:''}],
+    awsInGross:false, awsMode:'none', awsAmt:0, commission:0,
+    levy:dt.levy, medical:65, wica:1.5, cpfOverride:false,
+    awsLabel:'Annual Wage Supplement', awsRows:[{mode:'none',months:1,amt:0,label:'Annual Wage Supplement',id:1}],
+    depositMonths:type==='local'?0:2, depositIncFee:true,
+    feeOverride:true, grpFeeMode:dt.feeMode,
+    grpFeeFlat:dt.feeFlat, grpFeeFloor:dt.feeFloor,
+    grpFeePct:dt.feePct, grpFeeLabel:'Monthly Service Fees',
+    hourly:false, hourlyRate:0, hoursPerMonth:0,
+    secBond:type==='wpprc', secBondAmount:5000, secBondFee:300,
+    remarkLevy:'', remarkMedical:'', remarkCPF:'',
+    remarkSDL:'', remarkWICA:'', remarkAWS:''
+  });
+  syncFormPicker(); renderGroups(); recalc();
+}
+
+function renderAddMoreBtns(){
+  const el=document.getElementById('addMoreBtns');
+  if(!el) return;
+  // Show "Add another X group" for any type that is already selected
+  const activeTypes=[...new Set(groups.map(g=>g.type))];
+  if(!activeTypes.length){ el.style.display='none'; return; }
+  el.style.display='flex';
+  el.innerHTML=activeTypes.map(type=>
+    `<button class="btn add sm" onclick="addAnotherGroup('${type}')" style="font-size:11px">
+      ＋ Add another ${TYPES[type].label} group
+    </button>`
+  ).join('');
 }
 
 function startNew(){
