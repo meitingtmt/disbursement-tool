@@ -728,7 +728,7 @@ function renderGroups(){
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px;margin-bottom:10px">
       <div class="fg" style="margin:0">
         <label>Security deposit <span style="font-weight:400;color:var(--text3)">(months)</span></label>
-        <input type="number" min="0" max="12" step="1" value="${g.depositMonths||0}" oninput="upG(${g.id},'depositMonths',parseFloat(this.value)||0);recalc()">
+        <input type="number" min="0" max="12" step="1" value="${g.depositMonths!=null?g.depositMonths:0}" oninput="upG(${g.id},'depositMonths',this.value===''?0:parseFloat(this.value));recalc()">
         <div class="hint">${g.type==='local'?'Local workers: deposit optional.':'Foreign workers: deposit required unless Top Mgmt approved.'}</div>
       </div>
       <div class="fg" style="margin:0">
@@ -737,12 +737,12 @@ function renderGroups(){
           <option value="yes"${(g.depositIncFee!==false)?' selected':''}>Yes — include monthly service fee</option>
           <option value="no"${(g.depositIncFee===false)?' selected':''}>No — salary only</option>
         </select>
-        ${(g.depositIncFee===false)?`<div class="hint" style="color:#C03030">⚠ Excluding fee from deposit requires Top Mgmt approval.</div>`:''}
+        ${(g.depositIncFee===false)?`<div class="hint" style="color:#7A5500">⚠ Reminder: excluding fee from deposit requires Top Mgmt approval.</div>`:''}
       </div>
     </div>
-    ${(g.type!=='local'&&(g.depositMonths||0)===0)?`<div style="background:#FDF2F2;border:1px solid #F0D0D0;border-radius:6px;padding:7px 10px;font-size:11px;color:#C03030;margin-bottom:8px;display:flex;align-items:center;gap:6px">
-      <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" width="13" height="13"><circle cx="7" cy="7" r="6"/><path d="M7 4.5v3M7 9.5v.1"/></svg>
-      No deposit set for ${TYPES[g.type].label}. Deposit is required unless Top Management has approved waiver.
+    ${(g.type!=='local'&&(g.depositMonths==null||g.depositMonths===0))?`<div style="background:#FFF8EC;border:1px solid #F5D98A;border-radius:6px;padding:7px 10px;font-size:11px;color:#7A5500;margin-bottom:8px;display:flex;align-items:center;gap:6px;pointer-events:none">
+      <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" width="13" height="13"><path d="M7 2L1 12h12L7 2z"/><path d="M7 6v3M7 10.5v.1"/></svg>
+      Reminder: deposit is recommended for ${TYPES[g.type].label}. Waiver requires Top Management approval.
     </div>`:''}
     <div class="mini-sec" style="margin-top:14px">Monthly service fee for this group</div>
     <div class="r2" style="margin-bottom:6px">
@@ -762,9 +762,9 @@ function renderGroups(){
       const minRate=TYPES[g.type].feeFlat||0;
       const curRate=g.grpFeeMode==='max'?g.grpFeeFloor:g.grpFeeFlat;
       const belowMin=g.grpFeeMode!=='none'&&curRate>0&&curRate<minRate;
-      return belowMin?`<div style="background:#FDF2F2;border:1px solid #F0D0D0;border-radius:6px;padding:7px 10px;font-size:11px;color:#C03030;margin-bottom:6px;display:flex;align-items:center;gap:6px">
-        <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" width="13" height="13"><circle cx="7" cy="7" r="6"/><path d="M7 4.5v3M7 9.5v.1"/></svg>
-        Rate below standard ($${minRate} for ${TYPES[g.type].label}). Top management approval required.
+      return belowMin?`<div style="background:#FFF8EC;border:1px solid #F5D98A;border-radius:6px;padding:7px 10px;font-size:11px;color:#7A5500;margin-bottom:6px;display:flex;align-items:center;gap:6px">
+        <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" width="13" height="13"><path d="M7 2L1 12h12L7 2z"/><path d="M7 6v3M7 10.5v.1"/></svg>
+        Reminder: rate is below standard ($${minRate} for ${TYPES[g.type].label}). Top Management approval recommended.
       </div>`:'';
     })()}
     ${g.grpFeeMode==='max'?`<div class="r2"><div class="fg"><label>% of disbursement</label>
