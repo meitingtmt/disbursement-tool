@@ -564,6 +564,7 @@ const TYPES={
 };
 const ACCT='_("$"* #,##0.00_);_("$"* \\(#,##0.00\\);_("$"* "-"??_);_(@_)';
 let groups=[],svcs=[],gid=0,sid=0;
+let payRemarks={fee:'',deposit:'',total:'',monthly:'',first:'',second:'',subsequent:''};
 
 const $=id=>document.getElementById(id);
 const num=v=>{const n=parseFloat(v);return isNaN(n)?0:n;};
@@ -2857,6 +2858,526 @@ function showModal(html){
 }
 
 
+
+// ── Utility helpers ──
+const dl=(blob,name)=>{const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);};
+const fn=(ext)=>{const c=($('cName')?.value||'Client').replace(/[^a-zA-Z0-9]/g,'_');const d=($('cDate')?.value||new Date().toISOString().slice(0,10)).replace(/-/g,'');return `Disbursement_${c}_${d}.${ext}`;};
+function tabLabel(g,i){return g.tabName.trim()||TYPES[g.type].label;}
+
+// ── Dropdown helpers ──
+function toggleDrop(id){
+  const el=document.getElementById(id);
+  const wasOpen=el.classList.contains('open');
+  document.querySelectorAll('.tbtn-drop.open').forEach(d=>d.classList.remove('open'));
+  if(!wasOpen) el.classList.add('open');
+}
+function closeDrop(id){ document.getElementById(id)?.classList.remove('open'); }
+document.addEventListener('click', e=>{
+  if(!e.target.closest('.tbtn-drop')) document.querySelectorAll('.tbtn-drop.open').forEach(d=>d.classList.remove('open'));
+});
+
+// ── Excel import ──
+function loadFromExcel(input){
+  const file=input.files[0]; if(!file) return;
+  const reader=new FileReader();
+  reader.onload=async e=>{
+    try{
+      if(typeof XLSX==='undefined'){alert('Excel library loading, please try again.'); return;}
+      const wb=XLSX.read(e.target.result,{type:'array'});
+      const result={data:{entityName:'',clientName:'',date:'',groups:[]},matched:[]};
+      wb.SheetNames.forEach((sheetName)=>{
+        const ws=wb.Sheets[sheetName];
+        const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+        if(!rows.length||/summary/i.test(sheetName)) return;
+        const g={type:'wp',tabName:sheetName,pax:1,sameSalary:true,
+          grossRows:[{id:1,label:'Basic Salary',val:0,remark:''}],
+          awsRows:[{mode:'none',months:1,amt:0,label:'Annual Wage Supplement',id:1}],
+          awsInGross:false,awsMode:'none',awsAmt:0,commission:0,
+          levy:800,medical:65,wica:1.5,cpfOverride:false,awsLabel:'Annual Wage Supplement',
+          depositMonths:2,depositIncFee:true,feeOverride:true,
+          grpFeeMode:'flat',grpFeeFlat:1000,grpFeeFloor:0,grpFeePct:0,grpFeeLabel:'Monthly Service Fees',
+          hourly:false,hourlyRate:0,hoursPerMonth:0,secBond:false,secBondAmount:5000,secBondFee:300,
+          remarkLevy:'',remarkMedical:'',remarkCPF:'',remarkSDL:'',remarkWICA:'',remarkAWS:''};
+        const sn=sheetName.toLowerCase();
+        if(sn.includes('s pass')){g.type='sp';g.levy=650;g.grpFeeFlat=1800;}
+        else if(sn.includes('prc')){g.type='wpprc';g.levy=800;g.grpFeeFlat=1500;}
+        else if(sn.includes('ep')||sn.includes('employment')){g.type='ep';g.levy=0;g.grpFeeFlat=1800;}
+        else if(sn.includes('local')){g.type='local';g.levy=0;g.grpFeeFlat=255;}
+        rows.forEach(row=>{
+          const label=String(row[0]||'').trim();
+          const val=parseFloat(String(row[1]||'').replace(/[^0-9.-]/g,''));
+          if(!label) return;
+          if(/basic salary|monthly remuneration/i.test(label)&&!isNaN(val)) g.grossRows[0].val=val;
+          else if(/medical insurance/i.test(label)&&!isNaN(val)) g.medical=val;
+          else if(/service fee|admin fee/i.test(label)&&!isNaN(val)){g.feeOverride=true;g.grpFeeFlat=val;}
+          else if(/pax|headcount/i.test(label)&&!isNaN(val)&&val>0) g.pax=val;
+          else if(/entity|prepared by/i.test(label)&&row[1]&&!result.data.entityName) result.data.entityName=String(row[1]).trim();
+          else if(/client/i.test(label)&&row[1]&&!result.data.clientName) result.data.clientName=String(row[1]).trim();
+        });
+        if(g.grossRows[0].val>0) result.data.groups.push(g);
+      });
+      if(!result.data.groups.length){alert('Could not detect any worker groups from this Excel file.');return;}
+      applyParsed(result);
+      input.value='';
+    }catch(err){alert('Failed to read Excel file: '+err.message);}
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// ── Export PDF ──
+/* ── Excel export ── */
+async function exportExcel(){
+  if(!groups.length){alert('Add at least one worker group first.');return;}
+  if(typeof ExcelJS==='undefined'){alert('Excel library still loading, please try again.');return;}
+  try{
+    const wb=new ExcelJS.Workbook();
+    wb.creator='Elitez Disbursement Tool';
+    const hasRemarks=true;
+    const allCalcs=groups.map(g=>({g,c:calcGroup(g)}));
+    const entityN=$('entityName')?.value||'Elitez';
+    const clientN=$('cName')?.value||'';
+    const dateN=$('cDate')?.value?new Date($('cDate').value).toLocaleDateString('en-SG',{day:'2-digit',month:'short',year:'numeric'}):'';
+    const usedNames=new Set();
+
+    // One worksheet per group
+    for(let gi=0;gi<groups.length;gi++){
+      const g=groups[gi];
+      const c=allCalcs[gi].c;
+      const rows=buildRows(g,c);
+      const pax=(g.sameSalary&&g.pax>1)?g.pax:1;
+      // Tab name
+      let tn=(g.tabName.trim()||TYPES[g.type].label);
+      if(usedNames.has(tn)){let n=2;while(usedNames.has(tn+' '+n))n++;tn=tn+' '+n;}
+      usedNames.add(tn);
+      const ws=wb.addWorksheet(tn,{views:[{showGridLines:false}]});
+      const navy={argb:'FF0B2440'}, white={argb:'FFFFFFFF'}, light={argb:'FFF2F5F9'};
+      const thin={style:'thin',color:{argb:'FFDDE3EC'}};
+      const border={top:thin,bottom:thin,left:thin,right:thin};
+      const colW=pax>1?[hasRemarks?46:52,18,10,18]:[hasRemarks?58:68,18,18];
+      ws.columns=colW.map(w=>({width:w}));
+
+      let rw=1;
+      // Entity + client header
+      ws.mergeCells(`A${rw}:${pax>1?(hasRemarks?'D':'C'):(hasRemarks?'C':'B')}${rw}`);
+      const eh=ws.getCell(`A${rw}`);
+      eh.value=entityN;
+      eh.font={name:'Calibri',size:13,bold:true,color:{argb:'FF0B2440'}};
+      eh.alignment={horizontal:'left'};
+      ws.getRow(rw).height=20; rw++;
+      if(clientN||dateN){
+        ws.mergeCells(`A${rw}:${pax>1?(hasRemarks?'D':'C'):(hasRemarks?'C':'B')}${rw}`);
+        const ch=ws.getCell(`A${rw}`);
+        ch.value=(clientN?'Client: '+clientN:'')+(clientN&&dateN?'   ':'')+(dateN?'Date: '+dateN:'');
+        ch.font={name:'Calibri',size:10,color:{argb:'FF5D6B7A'}};
+        rw++;
+      }
+      rw++; // blank
+
+      // Table title
+      ws.mergeCells(`A${rw}:${pax>1?(hasRemarks?'D':'C'):(hasRemarks?'C':'B')}${rw}`);
+      const tt=ws.getCell(`A${rw}`);
+      tt.value=clientN?`${clientN} (${TYPES[g.type].label})`:`${TYPES[g.type].label}`;
+      tt.font={name:'Calibri',size:12,bold:true,color:{argb:'FF0B2440'}};
+      ws.getRow(rw).height=18; rw++;
+      rw++; // blank
+
+      // Render rows
+      rows.forEach(r=>{
+        if(r.kind==='blank'){rw++;return;}
+        if(r.kind==='disclaimer'){
+          ws.mergeCells(`A${rw}:${pax>1?(hasRemarks?'D':'C'):(hasRemarks?'C':'B')}${rw}`);
+          const dc=ws.getCell(`A${rw}`);
+          dc.value=r.a; dc.font={name:'Calibri',size:9,italic:true,color:{argb:'FF5D6B7A'}};
+          dc.alignment={wrapText:true,horizontal:'left'};
+          ws.getRow(rw).height=30; rw++;
+          return;
+        }
+        if(r.kind==='meta'){
+          const isEntity=r._meta==='entity';
+          ws.mergeCells(`A${rw}:${pax>1?(hasRemarks?'D':'C'):(hasRemarks?'C':'B')}${rw}`);
+          const mc=ws.getCell(`A${rw}`);
+          mc.value=r.a;
+          mc.font={name:'Calibri',size:isEntity?12:10,bold:isEntity,color:{argb:isEntity?'FF0B2440':'FF5D6B7A'}};
+          rw++; return;
+        }
+        if(r.kind==='head'){
+          const cols=pax>1?[r.a,r.b,'Pax','Total']:[r.a,r.b];
+          if(hasRemarks) cols.push('Remarks');
+          cols.forEach((v,ci)=>{
+            const cell=ws.getCell(rw,ci+1);
+            cell.value=v||'';
+            cell.fill={type:'pattern',pattern:'solid',fgColor:navy};
+            cell.font={name:'Calibri',size:10,bold:true,color:white};
+            cell.alignment={horizontal:ci===0?'left':'right',wrapText:true,vertical:'middle'};
+            cell.border=border;
+          });
+          ws.getRow(rw).height=28; rw++; return;
+        }
+        if(r.kind==='item'){
+          const fmtV=(v)=>v===''?'':typeof v==='number'?v:v;
+          const rateVal=r.b===''?'':r.b;
+          const totVal=r.b===''?'':(r.b*pax);
+          const cols=pax>1?[r.a,rateVal,pax,totVal]:[r.a,rateVal];
+          if(hasRemarks) cols.push(r.remarks||'');
+          cols.forEach((v,ci)=>{
+            const cell=ws.getCell(rw,ci+1);
+            cell.value=v;
+            if(typeof v==='number') cell.numFmt='"$"#,##0.00';
+            cell.font={name:'Calibri',size:10,bold:r.bold};
+            cell.alignment={horizontal:ci===0?'left':'right'};
+            cell.border=border;
+            if(r.bold) cell.fill={type:'pattern',pattern:'solid',fgColor:light};
+          });
+          rw++;
+        }
+      });
+    }
+
+    // Summary sheet if multiple groups
+    if(groups.length>1){
+      const ws2=wb.addWorksheet('Summary',{views:[{showGridLines:false}]});
+      ws2.columns=[{width:40},{width:15},{width:10},{width:18}];
+      const navy={argb:'FF0B2440'},white={argb:'FFFFFFFF'},light={argb:'FFF2F5F9'};
+      const thin={style:'thin',color:{argb:'FFDDE3EC'}};
+      const border={top:thin,bottom:thin,left:thin,right:thin};
+      let rw=1;
+      ['Worker Group','Per Pax (S$)','Pax','Monthly (S$)'].forEach((h,ci)=>{
+        const c=ws2.getCell(rw,ci+1);
+        c.value=h; c.fill={type:'pattern',pattern:'solid',fgColor:navy};
+        c.font={name:'Calibri',size:10,bold:true,color:white};
+        c.alignment={horizontal:ci===0?'left':'right'};
+        c.border=border;
+      });
+      rw++;
+      let grandTotal=0;
+      allCalcs.forEach(({g,c})=>{
+        const px=(g.sameSalary&&g.pax>1)?g.pax:1;
+        const tn=g.tabName.trim()||TYPES[g.type].label;
+        [tn,c.totalPerPax,px,c.totalPerPax*px].forEach((v,ci)=>{
+          const cell=ws2.getCell(rw,ci+1);
+          cell.value=v;
+          if(ci===1||ci===3) cell.numFmt='"$"#,##0.00';
+          cell.font={name:'Calibri',size:10};
+          cell.alignment={horizontal:ci===0?'left':'right'};
+          cell.border=border;
+        });
+        grandTotal+=c.totalPerPax*px;
+        rw++;
+      });
+      // Grand total
+      ['Grand Total','','',grandTotal].forEach((v,ci)=>{
+        const cell=ws2.getCell(rw,ci+1);
+        cell.value=v;
+        if(ci===3) cell.numFmt='"$"#,##0.00';
+        cell.font={name:'Calibri',size:10,bold:true};
+        cell.fill={type:'pattern',pattern:'solid',fgColor:light};
+        cell.alignment={horizontal:ci===0?'left':'right'};
+        cell.border=border;
+      });
+    }
+
+    const buf=await wb.xlsx.writeBuffer();
+    dl(new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),fn('xlsx'));
+  }catch(err){
+    console.error('Excel export error:',err);
+    alert('Excel export failed: '+err.message);
+  }
+}
+
+/* ── PDF export ── */
+function exportPDF(){
+  if(!groups.length){alert('Add at least one worker group first.');return;}
+  if(!window.jspdf||!window.jspdf.jsPDF){
+    alert('PDF library still loading, please try again.');return;
+  }
+  try{
+    const {jsPDF}=window.jspdf;
+    const doc=new jsPDF({unit:'mm',format:'a4'});
+    const pageW=doc.internal.pageSize.getWidth();
+    const pageH=doc.internal.pageSize.getHeight();
+    const margin=14;
+    const allCalcs=groups.map(g=>({g,c:calcGroup(g)}));
+    const entityN=$('entityName')?.value||'Elitez';
+    const clientN=$('cName')?.value||'';
+    const dateN=$('cDate')?.value?new Date($('cDate').value).toLocaleDateString('en-SG',{day:'2-digit',month:'short',year:'numeric'}):'';
+    const bGST=$('chkBGST')?.checked!==false;
+    const navy=[11,36,64], white=[255,255,255], light=[242,245,249], orange=[232,130,10];
+    let isFirstPage=true;
+
+    allCalcs.forEach(({g,c},gi)=>{
+      const rows=buildRows(g,c);
+      const pax=(g.sameSalary&&g.pax>1)?g.pax:1;
+      const hasRemarks=true;
+      const tn=g.tabName.trim()||TYPES[g.type].label;
+
+      if(!isFirstPage) doc.addPage();
+      isFirstPage=false;
+
+      // Header
+      doc.setFontSize(13); doc.setFont('helvetica','bold');
+      doc.setTextColor(...navy);
+      doc.text(entityN, margin, 18);
+      if(clientN||dateN){
+        doc.setFontSize(9); doc.setFont('helvetica','normal');
+        doc.setTextColor(93,107,122);
+        if(clientN) doc.text('Client: '+clientN, margin, 23);
+        if(dateN) doc.text('Date: '+dateN, pageW-margin, 23, {align:'right'});
+      }
+
+      // Table title
+      doc.setFontSize(11); doc.setFont('helvetica','bold');
+      doc.setTextColor(...navy);
+      doc.text(TYPES[g.type].label, margin, 32);
+
+      // Build table data
+      const head=[], body=[];
+      const rateHdr=bGST?'Rate\n(Before GST)':'Rate';
+      const cols=pax>1?
+        (hasRemarks?[{content:'',styles:{cellWidth:80}},{content:rateHdr,styles:{halign:'right'}},{content:'Pax',styles:{halign:'right',cellWidth:10}},{content:'Total',styles:{halign:'right'}},{content:'Remarks',styles:{cellWidth:30}}]:
+         [{content:'',styles:{cellWidth:90}},{content:rateHdr,styles:{halign:'right'}},{content:'Pax',styles:{halign:'right',cellWidth:10}},{content:'Total',styles:{halign:'right'}}]):
+        (hasRemarks?[{content:'',styles:{cellWidth:100}},{content:rateHdr,styles:{halign:'right'}},{content:'Remarks',styles:{cellWidth:40}}]:
+         [{content:'',styles:{cellWidth:130}},{content:rateHdr,styles:{halign:'right'}}]);
+
+      const fmtS=n=>n===''?'':('$'+(Math.round(n*100)/100).toLocaleString('en-SG',{minimumFractionDigits:2,maximumFractionDigits:2}));
+
+      rows.forEach(r=>{
+        if(r.kind==='blank'||r.kind==='meta'||r.kind==='disclaimer') return;
+        if(r.kind==='head'){
+          if(body.length) {
+            // flush current body as a section
+          }
+          body.push([{content:r.a,colSpan:cols.length,styles:{fillColor:light,fontStyle:'bold',textColor:navy,fontSize:9}}]);
+          return;
+        }
+        if(r.kind==='item'){
+          const rate=r.b===''?'':fmtS(r.b);
+          const tot=r.b===''?'':(r.showPax&&pax>1?fmtS(r.b*pax):'');
+          const rowStyle=r.bold?{fontStyle:'bold',fillColor:light}:{};
+          if(pax>1){
+            const row=[
+              {content:r.a,styles:{...rowStyle,fontStyle:r.bold?'bold':'normal'}},
+              {content:rate,styles:{...rowStyle,halign:'right'}},
+              {content:r.showPax&&pax>1?String(pax):'',styles:{...rowStyle,halign:'right'}},
+              {content:tot,styles:{...rowStyle,halign:'right',fontStyle:r.bold?'bold':'normal'}},
+            ];
+            if(hasRemarks) row.push({content:r.remarks||'',styles:{fontSize:8,textColor:[93,107,122]}});
+            body.push(row);
+          } else {
+            const row=[
+              {content:r.a,styles:{...rowStyle,fontStyle:r.bold?'bold':'normal'}},
+              {content:rate,styles:{...rowStyle,halign:'right',fontStyle:r.bold?'bold':'normal'}},
+            ];
+            if(hasRemarks) row.push({content:r.remarks||'',styles:{fontSize:8,textColor:[93,107,122]}});
+            body.push(row);
+          }
+        }
+      });
+
+      doc.autoTable({
+        startY:35,
+        head:[],
+        body:body,
+        theme:'plain',
+        styles:{font:'helvetica',fontSize:9,cellPadding:2.5,lineColor:[221,227,236],lineWidth:0.2},
+        columnStyles:{},
+        margin:{left:margin,right:margin},
+        didParseCell:(data)=>{
+          if(data.row.raw?.[0]?.styles?.fillColor===light){
+            data.cell.styles.fillColor=light;
+          }
+        }
+      });
+
+      // Disclaimer
+      const discY=doc.lastAutoTable.finalY+5;
+      const disc=$('disclaimer')?.value||'';
+      if(disc){
+        doc.setFontSize(8); doc.setFont('helvetica','normal');
+        doc.setTextColor(93,107,122);
+        const lines=doc.splitTextToSize(disc, pageW-margin*2);
+        doc.text(lines, margin, discY);
+      }
+    });
+
+    // Summary page if multiple groups
+    if(allCalcs.length>1){
+      doc.addPage();
+      doc.setFontSize(12); doc.setFont('helvetica','bold');
+      doc.setTextColor(...navy);
+      doc.text('Summary — Total Monthly to Collect', margin, 20);
+
+      const paxFmt=g=>(g.sameSalary&&g.pax>1)?g.pax:1;
+      const grandTotal=allCalcs.reduce((s,{g,c})=>s+c.totalPerPax*paxFmt(g),0);
+      const fmtS=n=>('$'+(Math.round(n*100)/100).toLocaleString('en-SG',{minimumFractionDigits:2,maximumFractionDigits:2}));
+
+      const sumBody=allCalcs.map(({g,c})=>{
+        const px=paxFmt(g);
+        const tn=g.tabName.trim()||TYPES[g.type].label;
+        return [tn+(px>1?' ('+px+' pax)':''),fmtS(c.totalPerPax),px>1?String(px):'1',fmtS(c.totalPerPax*px)];
+      });
+      sumBody.push([{content:'Grand Total — Monthly to Collect',styles:{fontStyle:'bold',fillColor:light,textColor:navy}},
+        '','',{content:fmtS(grandTotal),styles:{fontStyle:'bold',fillColor:light,textColor:navy,halign:'right'}}]);
+
+      doc.autoTable({
+        startY:25,
+        head:[[{content:'Worker Group',styles:{fillColor:navy,textColor:white,fontStyle:'bold'}},
+               {content:'Per Pax (S$)',styles:{fillColor:navy,textColor:white,fontStyle:'bold',halign:'right'}},
+               {content:'Pax',styles:{fillColor:navy,textColor:white,fontStyle:'bold',halign:'right'}},
+               {content:'Monthly (S$)',styles:{fillColor:navy,textColor:white,fontStyle:'bold',halign:'right'}}]],
+        body:sumBody,
+        theme:'plain',
+        styles:{font:'helvetica',fontSize:9,cellPadding:2.5,lineColor:[221,227,236],lineWidth:0.2},
+        columnStyles:{1:{halign:'right'},2:{halign:'right'},3:{halign:'right'}},
+        margin:{left:margin,right:margin},
+      });
+    }
+
+    doc.save(fn('pdf'));
+  }catch(err){
+    console.error('PDF export error:',err);
+    alert('PDF export failed: '+err.message);
+  }
+}
+
+function exportPDFSafe(){
+  if(typeof jspdf==='undefined'&&typeof window.jspdf==='undefined'){
+    alert('PDF library loading, please try again in a moment.'); return;
+  }
+  try{ exportPDF(); }catch(e){ alert('PDF export failed: '+e.message); }
+}
+
+// ── Export Excel ──
+function exportExcelSafe(){
+  if(typeof ExcelJS==='undefined'){
+    alert('Excel library loading, please try again in a moment.'); return;
+  }
+  try{ exportExcel(); }catch(e){ alert('Excel export failed: '+e.message); }
+}
+
+// ── Print comparison ──
+function printComparison(){
+  const body=document.getElementById('compareModalBody')?.innerHTML;
+  if(!body) return;
+  const clientName=$('cName')?.value||'Client';
+  const date=new Date().toLocaleDateString('en-SG',{day:'2-digit',month:'short',year:'numeric'});
+  const win=window.open('','_blank','width=900,height=700');
+  win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+<title>Why Elitez — Cost Comparison</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:'Inter',sans-serif;font-size:12px;color:#1A2533;padding:32px 40px;max-width:900px;margin:0 auto}
+h1{font-size:18px;font-weight:800;color:#0B2440}table{width:100%;border-collapse:collapse;margin-bottom:16px;font-size:11.5px}
+th{background:#F2F5F9;padding:7px 10px;text-align:left;font-weight:700;font-size:10px;text-transform:uppercase;color:#0B2440}
+th:not(:first-child){text-align:right}td{padding:6px 10px;border-top:1px solid #EEF0F4}td:not(:first-child){text-align:right}
+.red{color:#C03030;font-weight:600}.green{color:#1A6B42;font-weight:600}.navy{color:#0B2440;font-weight:700}
+.banner{background:#0B2440;color:#fff;border-radius:8px;padding:14px 18px;margin:16px 0}
+.wm{font-size:16px;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:#0B2440}.wm-t{color:#E8820A}
+.header{display:flex;justify-content:space-between;margin-bottom:20px;padding-bottom:16px;border-bottom:2px solid #E8820A}
+.note{font-size:10px;color:#8A97A6;font-style:italic;margin-top:12px}
+@media print{button{display:none}}</style></head><body>
+<div class="header"><div><div class="wm">ELI<span class="wm-t">T</span>EZ</div>
+<div style="font-size:10px;color:#5A6878;margin-top:2px">Internal Sales Reference</div></div>
+<div style="text-align:right;font-size:11px;color:#5A6878"><div style="font-weight:600;color:#0B2440">${esc(clientName)}</div><div>${date}</div></div></div>
+${body}
+<div class="note" style="margin-top:20px;border-top:1px solid #EEF0F4;padding-top:12px">INTERNAL USE ONLY — Not to be shared externally without management approval.</div>
+</body></html>`);
+  win.document.close();
+  setTimeout(()=>win.print(),600);
+}
+
+// ── Download comparison Excel ──
+function downloadComparisonExcel(){
+  if(typeof ExcelJS==='undefined'){alert('Excel library loading, please try again.');return;}
+  const allCalcs2=groups.map(g=>({g,c:calcGroup(g)}));
+  if(!allCalcs2.length){alert('No worker groups to export.');return;}
+  const paxFmt2=g=>(g.sameSalary&&g.pax>1)?g.pax:1;
+  (async()=>{
+    try{
+      const wb=new ExcelJS.Workbook();
+      const ws=wb.addWorksheet('Cost Comparison');
+      const clientName=$('cName')?.value||'Client';
+      const date=new Date().toLocaleDateString('en-SG',{day:'2-digit',month:'short',year:'numeric'});
+      const navy={argb:'FF0B2440'},orange={argb:'FFE8820A'},white={argb:'FFFFFFFF'};
+      const red={argb:'FFC03030'},green={argb:'FF1A6B42'},lightGray={argb:'FFF2F5F9'};
+      const border={style:'thin',color:{argb:'FFDDE3EC'}};
+      const allBorder={top:border,bottom:border,left:border,right:border};
+      const bf={name:'Calibri',size:11};
+      ws.columns=[{width:36},{width:18},{width:18},{width:16}];
+      ws.mergeCells('A1:D1');
+      const t=ws.getCell('A1');
+      t.value='Why Elitez? — Cost Comparison';
+      t.font={...bf,size:16,bold:true,color:white};
+      t.fill={type:'pattern',pattern:'solid',fgColor:navy};
+      t.alignment={vertical:'middle',horizontal:'left'};
+      ws.getRow(1).height=32;
+      ws.mergeCells('A2:D2');
+      const s=ws.getCell('A2');
+      s.value=clientName+' · '+date+' · INTERNAL USE ONLY';
+      s.font={...bf,size:10,italic:true,color:{argb:'FF5A6878'}};
+      ws.getRow(3).height=8;
+      const hdr=ws.getRow(4);
+      ['Worker Group','Direct Hire / mth','Via Elitez / mth','Saving / mth'].forEach((h,i)=>{
+        const c=hdr.getCell(i+1);
+        c.value=h;c.font={...bf,bold:true,color:white};
+        c.fill={type:'pattern',pattern:'solid',fgColor:navy};
+        c.alignment={horizontal:i===0?'left':'right',vertical:'middle'};
+        c.border=allBorder;
+      });
+      ws.getRow(4).height=20;
+      let row=5,grandDirect=0,grandElitez=0;
+      allCalcs2.forEach(({g,c})=>{
+        const px=paxFmt2(g),disbPax=c.disbPerPax,elitezPax=c.totalPerPax;
+        const allTypes=allCalcs2.map(x=>x.g.type);
+        const spOnly=g.type==='sp'&&!allTypes.includes('wp')&&!allTypes.includes('wpprc');
+        const prcOnly=g.type==='wpprc'&&!allTypes.includes('wp')&&!allTypes.includes('sp');
+        const LQS=1600;const lhc=LQS+LQS*0.17+Math.min(Math.max(LQS*0.0025,2),11.25)+LQS*0.015;
+        const training=c.grossTotal*0.125,attrition=c.grossTotal/12,hrAdmin=100;
+        const office=['wp','wpprc'].includes(g.type)?200:500;
+        const leave=(c.grossTotal/26)*(28/12);
+        const superCost=(c.grossTotal*1.6)*0.20/Math.max(1,px);
+        const quota=!['wp','wpprc','sp'].includes(g.type)?0:spOnly?lhc*(90/10):prcOnly?lhc*(92/8):lhc*(65/35);
+        const hidden=training+attrition+hrAdmin+office+leave+superCost+quota;
+        const directPax=disbPax+hidden;
+        const saving=(directPax-elitezPax)*px;
+        grandDirect+=directPax*px;grandElitez+=elitezPax*px;
+        const r=ws.getRow(row++);
+        const grpLabel=(g.tabName.trim()||TYPES[g.type].label)+' ('+px+' pax)';
+        [grpLabel,directPax*px,elitezPax*px,saving].forEach((v,i)=>{
+          const cell=r.getCell(i+1);
+          cell.value=v;cell.border=allBorder;cell.font={...bf};
+          cell.alignment={horizontal:i===0?'left':'right'};
+          if(i>0) cell.numFmt='"S$"#,##0.00';
+          if(i===1) cell.font={...bf,color:red};
+          if(i===2) cell.font={...bf,color:green};
+          if(i===3){cell.font={...bf,bold:true,color:saving>=0?green:red};}
+        });
+      });
+      if(allCalcs2.length>1){
+        const tr=ws.getRow(row++);
+        ['Grand Total',grandDirect,grandElitez,grandDirect-grandElitez].forEach((v,i)=>{
+          const cell=tr.getCell(i+1);
+          cell.value=v;cell.border=allBorder;
+          cell.fill={type:'pattern',pattern:'solid',fgColor:lightGray};
+          cell.font={...bf,bold:true};
+          cell.alignment={horizontal:i===0?'left':'right'};
+          if(i>0) cell.numFmt='"S$"#,##0.00';
+        });
+      }
+      const buf=await wb.xlsx.writeBuffer();
+      dl(new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),
+        'Cost_Comparison_'+(clientName||'Client').replace(/[^a-zA-Z0-9]/g,'_')+'.xlsx');
+    }catch(e){console.error(e);alert('Export failed: '+e.message);}
+  })();
+}
+
+
+// ── Page initialisation ──
+renderPayFields();
+renderPayRemarks();
+renderFeeFields();
+renderSvcs();
+addGroup();
+recalc();
+updateShortFormHint();
 
 </script>
 </div>
