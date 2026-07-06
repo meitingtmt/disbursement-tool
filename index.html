@@ -2037,6 +2037,172 @@ function upAws(gid,idx,field,val){
   renderGroups(); recalc();
 }
 
+// ── Default services by worker type ──
+const CONVERSION_REMARKS = "Rates based on duration into assignment:\n• Less than 6 months: 100% of average monthly salary\n• 6 to 12 months: 80% of average monthly salary\n• More than 12 months: 60% of average monthly salary";
+
+function defaultSvcsForTypes(types){
+  const hasForeign = types.some(t=>['wp','wpprc','sp','ep'].includes(t));
+  const hasPRC     = types.includes('wpprc');
+  const hasEP      = types.includes('ep');
+  const svcsNew=[];
+  let id=0;
+
+  if(hasForeign){
+    const foreignTypes=types.filter(t=>['wp','wpprc','sp','ep'].includes(t));
+    const rates={wp:800,wpprc:1000,sp:1800,ep:1800};
+    foreignTypes.forEach(t=>{
+      svcsNew.push({id:++id,name:TYPES[t].label+' Application',rate:rates[t],remark:TYPES[t].label});
+    });
+  }
+
+  if(hasForeign) svcsNew.push({id:++id,name:'Work Pass Cancellation',rate:80,remark:'All pass types'});
+  if(hasForeign) svcsNew.push({id:++id,name:'Work Pass Application Appeal',rate:160,remark:''});
+  if(hasForeign) svcsNew.push({id:++id,name:'Medical Check Up',rate:0,remark:'As charged + $15 admin fee'});
+  if(hasPRC) svcsNew.push({id:++id,name:'Security Bond (Admin Fee)',rate:300,remark:'Work Permit (PRC) only'});
+  if(hasEP) svcsNew.push({id:++id,name:'Education & Accreditation Verification',rate:288,remark:'Employment Pass only'});
+  svcsNew.push({id:++id,name:'Conversion / Loss of Manpower Fee',rate:7000,remark:'$7,000 or 18% of annual gross salary, whichever higher.\n\n'+CONVERSION_REMARKS});
+
+  return svcsNew;
+}
+
+function rebuildDefaultSvcs(){
+  const activeTypes=[...document.querySelectorAll('.wtype-pick.selected[id^="fpick_"]')]
+    .map(el=>el.id.replace('fpick_',''));
+  if(!activeTypes.length) return;
+  sid=0;
+  svcs=defaultSvcsForTypes(activeTypes);
+  sid=svcs.length;
+  renderSvcs(); recalc();
+}
+
+function toggleBPOModal(){
+  const clientName  = gv('cName')     || '';
+  const clientUen   = gv('bpoClientUen')  || '';
+  const clientAddr  = gv('bpoClientAddr') || '';
+  const clientRep   = gv('bpoClientRep')  || '';
+  const clientPos   = gv('bpoClientPos')  || '';
+  const elitezName  = gv('entityName') || '';
+  const elitezUen   = gv('bpoElitezUen')  || '';
+  const elitezAddr  = gv('bpoElitezAddr') || '';
+  const elitezRep   = gv('bpoElitezRep')  || '';
+  const elitezPos   = gv('bpoElitezPos')  || '';
+  const startDate   = gv('bpoStart') ? new Date(gv('bpoStart')).toLocaleDateString('en-SG',{day:'2-digit',month:'long',year:'numeric'}) : '';
+  const endDate     = gv('bpoEnd')   ? new Date(gv('bpoEnd')).toLocaleDateString('en-SG',{day:'2-digit',month:'long',year:'numeric'}) : '';
+  const agreeDate   = gv('cDate')    ? new Date(gv('cDate')).toLocaleDateString('en-SG',{day:'2-digit',month:'long',year:'numeric'}) : '';
+
+  function deriveShortPreview(name){
+    const s=name.replace(/(Pte\.?\s*Ltd\.?|Ltd\.?|Inc\.?|Sdn\.?\s*Bhd\.?|Corp\.?|Co\.?|Group of Companies|Holdings|Group)/gi,'').replace(/\s*[&]\s*/g,' ').replace(/\s+/g,' ').trim();
+    const w=s.split(/\s+/).filter(x=>x.length>1);
+    if(!w.length) return name.split(' ')[0]||name;
+    if(w.length===1) return w[0];
+    if(/^[A-Z]{2,4}$/.test(w[0])) return w[0];
+    const fill=new Set(['of','the','and','for','in','at','by','to','a','an']);
+    const m=w.filter(x=>!fill.has(x.toLowerCase()));
+    if(m.length>=3) return m.map(x=>x[0].toUpperCase()).join('');
+    return m[0]||w[0];
+  }
+  const manualShort = gv('bpoShortForm');
+  const E = manualShort || (elitezName ? deriveShortPreview(elitezName) : 'Elitez');
+
+  const fmtM=(n)=>'S$'+n.toLocaleString('en-SG',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const allC=groups.map(g=>({g,c:calcGroup(g)}));
+  const px2=({g})=>(g.sameSalary&&g.pax>1)?g.pax:1;
+  const depositTotal=allC.reduce((s,x)=>{const px=px2(x),depM=x.g.depositMonths||0;const base=x.g.depositIncFee!==false?x.c.totalPerPax:x.c.disbPerPax;return s+base*px*depM;},0);
+  const bpoExp=allC.reduce((s,x)=>s+x.c.disbPerPax*px2(x),0);
+  const svcFee=allC.reduce((s,x)=>s+x.c.feePerPax*px2(x),0);
+  const maxAG=allC.reduce((max,x)=>{const a=x.c.grossTotal*12;return a>max?a:max;},0);
+  const lomp=Math.max(7000,maxAG*0.18);
+  const lompLbl=maxAG*0.18>=7000?fmtM(lomp)+' (18% of annual gross)':'S$7,000 (minimum)';
+  const depParts=allC.map(({g})=>{const m=g.depositMonths||0;return m>0?m+' month'+(m>1?'s':'')+(TYPES[g.type]?' ('+TYPES[g.type].label+')':''):null;}).filter(Boolean);
+  const depDesc=depParts.length?depParts.join(' + '):'2 months';
+
+  const f=(val,placeholder)=>val
+    ?`<span style="font-weight:600">${esc(val)}</span>`
+    :`<span style="background:#FFF8EC;border:1px solid #F5D98A;border-radius:3px;padding:1px 6px;color:#7A5500;font-style:italic">${placeholder}</span>`;
+
+  const bpoHtml=`
+    <div style="text-align:center;border-bottom:2px solid #1A3C5E;padding-bottom:24px;margin-bottom:28px">
+      <div style="font-size:19px;font-weight:700;letter-spacing:.5px;margin-bottom:6px">BUSINESS PROCESS OUTSOURCING AGREEMENT</div>
+      <div style="font-size:13px;margin-bottom:4px">BETWEEN ${f(clientName,'&lt;Client Company Name&gt;')} AND ${f(elitezName,'&lt;Company Name&gt;')}</div>
+      <div style="font-size:12px;font-style:italic;color:#5d6b7a">Dated ${f(agreeDate,'&lt;Date&gt;')}</div>
+    </div>
+    <div style="margin-bottom:20px">
+      <div style="font-weight:700;margin-bottom:8px">BETWEEN:</div>
+      <div style="margin-left:20px;margin-bottom:10px">(A) ${f(clientName,'&lt;Client Company Name&gt;')} (Business Registration No. ${f(clientUen,'&lt;Client Company UEN No&gt;')}), a company incorporated in Singapore with its registered address at ${f(clientAddr,'&lt;Client Company Address&gt;')} (the "<strong>Client</strong>");</div>
+      <div style="font-weight:700;margin-bottom:8px">AND</div>
+      <div style="margin-left:20px;margin-bottom:10px">(B) ${f(elitezName,'&lt;Company Name&gt;')} (Company Registration No. ${f(elitezUen,'&lt;Company UEN No&gt;')}), a company incorporated in Singapore with its registered office at ${f(elitezAddr,'&lt;Company Address&gt;')} and its associated companies via shareholding, common shareholder or memorandum of understanding ("<strong>${esc(E)}</strong>"),</div>
+      <div>(collectively the "<strong>Parties</strong>" and each a "<strong>Party</strong>").</div>
+    </div>
+    <div style="margin-bottom:20px">
+      <div style="font-size:14px;font-weight:700;border-bottom:1px solid #d0d8e4;padding-bottom:6px;margin-bottom:10px">3. THE SERVICES</div>
+      <div>${esc(E)} shall perform the Services in accordance with the terms and conditions set out in this Agreement. This Agreement shall commence on ${f(startDate,'&lt;Start Date&gt;')} to ${f(endDate,'&lt;End Date&gt;')}.</div>
+    </div>
+    <div style="margin-bottom:20px">
+      <div style="font-size:14px;font-weight:700;border-bottom:1px solid #d0d8e4;padding-bottom:6px;margin-bottom:10px">6. FEES AND EXPENSES</div>
+      <div style="margin-bottom:8px"><strong>6.1</strong> The deposit shall be equivalent to <strong>${esc(depDesc)}</strong> of the service fee plus <strong>${esc(depDesc)}</strong> of Business Process Outsourcing resources expenses.</div>
+      <div style="margin-bottom:8px"><strong>6.2</strong> The Service Fees for the various Services provided are as set out in the Schedule(s) of this Agreement.</div>
+      <div><strong>6.3</strong> The Loss of Manpower Fee payable is set out in Schedule 1 of this Agreement.</div>
+    </div>
+    <div style="margin-bottom:20px">
+      <div style="font-size:14px;font-weight:700;border-bottom:1px solid #d0d8e4;padding-bottom:6px;margin-bottom:10px">9. NOTICES</div>
+      <table style="width:100%;font-size:12px;border-collapse:collapse">
+        <tr><td colspan="3" style="font-weight:700;padding:4px 0">${f(clientName,'&lt;Client Company Name&gt;')}</td></tr>
+        <tr><td style="width:120px;color:#5d6b7a">Address</td><td style="width:16px">:</td><td>${f(clientAddr,'&lt;Address&gt;')}</td></tr>
+        <tr><td style="color:#5d6b7a">Attention</td><td>:</td><td>${f(clientRep,'&lt;Rep Name&gt;')}, ${f(clientPos,'&lt;Position&gt;')}</td></tr>
+        <tr><td colspan="3" style="padding-top:10px;font-weight:700">${f(elitezName,'&lt;Company Name&gt;')}</td></tr>
+        <tr><td style="color:#5d6b7a">Address</td><td>:</td><td>${f(elitezAddr,'&lt;Address&gt;')}</td></tr>
+        <tr><td style="color:#5d6b7a">Attention</td><td>:</td><td>${f(elitezRep,'&lt;Rep Name&gt;')}, ${f(elitezPos,'&lt;Position&gt;')}</td></tr>
+      </table>
+    </div>
+    <div style="margin-bottom:20px">
+      <div style="font-size:14px;font-weight:700;border-bottom:1px solid #d0d8e4;padding-bottom:6px;margin-bottom:10px">SCHEDULE X — FEES AND EXPENSES</div>
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead><tr style="background:#1A3C5E;color:#fff">
+          <th style="padding:8px 12px;text-align:left">Monthly Charges</th>
+          <th style="padding:8px 12px;text-align:right">Fees (Before GST)</th>
+          <th style="padding:8px 12px;text-align:left">Remarks</th>
+        </tr></thead>
+        <tbody>
+          <tr style="border-bottom:1px solid #eef0f4"><td style="padding:7px 12px">Deposit (if any)</td><td style="padding:7px 12px;text-align:right;font-weight:600">${depositTotal>0?fmtM(depositTotal):'<span style="color:#7A5500;font-style:italic">Not set</span>'}</td><td style="padding:7px 12px;font-size:11px;color:#5d6b7a">${esc(depDesc)}</td></tr>
+          <tr style="border-bottom:1px solid #eef0f4;background:#fafbfc"><td style="padding:7px 12px">BPO Resources Expenses</td><td style="padding:7px 12px;text-align:right;font-weight:600">${bpoExp>0?fmtM(bpoExp):'As charged'}</td><td style="padding:7px 12px;font-size:11px;color:#5d6b7a">Gross salary + statutory</td></tr>
+          <tr style="border-bottom:1px solid #eef0f4"><td style="padding:7px 12px">Service Fees per month</td><td style="padding:7px 12px;text-align:right;font-weight:600">${svcFee>0?fmtM(svcFee):'<span style="color:#7A5500;font-style:italic">Not set</span>'}</td><td></td></tr>
+          <tr style="border-bottom:1px solid #eef0f4;background:#fafbfc"><td style="padding:7px 12px">Other Expenses per month</td><td style="padding:7px 12px;text-align:right;font-style:italic;color:#5d6b7a">As charged</td><td style="padding:7px 12px;font-size:11px;color:#5d6b7a">Additional resources agreed by Client</td></tr>
+          <tr><td style="padding:7px 12px">Loss of Manpower Fee</td><td style="padding:7px 12px;text-align:right;font-weight:600">${esc(lompLbl)}</td><td style="padding:7px 12px;font-size:11px;color:#5d6b7a">Whichever higher — $7,000 or 18% annual gross</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div>
+      <div style="font-size:14px;font-weight:700;border-bottom:1px solid #d0d8e4;padding-bottom:6px;margin-bottom:16px">SIGNATURES</div>
+      <table style="width:100%;font-size:12px">
+        <tr>
+          <td style="width:46%;vertical-align:top">
+            <div style="font-weight:700;margin-bottom:4px">Signed for and on behalf of</div>
+            <div style="font-weight:700;margin-bottom:16px">${f(clientName,'&lt;Client Company Name&gt;')}</div>
+            <div style="margin-bottom:10px">Signature: _______________________</div>
+            <div style="margin-bottom:6px">Name: ${f(clientRep,'&lt;Name&gt;')}</div>
+            <div style="margin-bottom:6px">Position: ${f(clientPos,'&lt;Position&gt;')}</div>
+            <div>Date: _______________________</div>
+          </td>
+          <td style="width:8%"></td>
+          <td style="vertical-align:top">
+            <div style="font-weight:700;margin-bottom:4px">Signed for and on behalf of</div>
+            <div style="font-weight:700;margin-bottom:16px">${f(elitezName,'&lt;Company Name&gt;')}</div>
+            <div style="margin-bottom:10px">Signature: _______________________</div>
+            <div style="margin-bottom:6px">Name: ${f(elitezRep,'&lt;Name&gt;')}</div>
+            <div style="margin-bottom:6px">Position: ${f(elitezPos,'&lt;Position&gt;')}</div>
+            <div>Date: _______________________</div>
+          </td>
+        </tr>
+      </table>
+    </div>
+    <div style="margin-top:24px;padding:10px 14px;background:#f0f4f8;border-radius:6px;font-size:11px;color:#5d6b7a;font-style:italic">
+      Note: Full clause text, Schedule X service descriptions, SLAs and KPIs use standard agreement terms. Download .docx for the complete agreement.
+    </div>`;
+
+  document.getElementById('bpoModalBody').innerHTML=bpoHtml;
+  document.getElementById('bpoModal').classList.add('show');
+}
+
 function toggleFormPick(type){
   const el=document.getElementById('fpick_'+type);
   if(!el) return;
