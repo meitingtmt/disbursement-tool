@@ -1707,292 +1707,34 @@ async function generateBPO(){
   const clientName  = gv('cName')     || '<Client Company Name>';
   const clientUen   = gv('bpoClientUen')  || '<Client Company UEN No>';
   const clientAddr  = gv('bpoClientAddr') || '<Client Company Address>';
-  const clientRep   = gv('bpoClientRep')  || '<Client Representative Name>';
+  const clientRep   = gv('bpoClientRep')  || '<Client Company\'s Representative Name>';
   const clientPos   = gv('bpoClientPos')  || '<Position>';
   const elitezName  = gv('entityName') || '<Company Name>';
   const elitezUen   = gv('bpoElitezUen')  || '<Company UEN No>';
   const elitezAddr  = gv('bpoElitezAddr') || '<Company Address>';
-  const elitezRep   = gv('bpoElitezRep')  || '<Company Representative Name>';
+  const elitezRep   = gv('bpoElitezRep')  || '<Company\'s Representative Name>';
   const elitezPos   = gv('bpoElitezPos')  || '<Position>';
-
-  // Derive short form from entity name
-  function deriveShortForm(name){
-    const stripped = name
-      .replace(/\b(Pte\.?\s*Ltd\.?|Ltd\.?|Inc\.?|Sdn\.?\s*Bhd\.?|Corp\.?|Co\.?|Group of Companies|Holdings|Group)\b/gi,'')
-      .replace(/\s*[&]\s*/g,' ')
-      .replace(/\s+/g,' ').trim();
-    const words = stripped.split(/\s+/).filter(w=>w.length>1);
-    if(words.length===0) return name.split(' ')[0];
-    if(words.length===1) return words[0];
-    if(/^[A-Z]{2,4}$/.test(words[0])) return words[0];
-    const fillers = new Set(['of','the','and','for','in','at','by','to','a','an']);
-    const meaningful = words.filter(w=>!fillers.has(w.toLowerCase()));
-    if(meaningful.length>=3) return meaningful.map(w=>w[0].toUpperCase()).join('');
-    return meaningful[0]||words[0];
-  }
-  const manualShort = gv('bpoShortForm');
-  const elitezShort = manualShort || deriveShortForm(elitezName);
-  const E = elitezShort;
   const startDate   = gv('bpoStart') ? new Date(gv('bpoStart')).toLocaleDateString('en-SG',{day:'2-digit',month:'long',year:'numeric'}) : '<Start Date>';
   const endDate     = gv('bpoEnd')   ? new Date(gv('bpoEnd')).toLocaleDateString('en-SG',{day:'2-digit',month:'long',year:'numeric'}) : '<End Date>';
   const agreeDate   = gv('cDate')    ? new Date(gv('cDate')).toLocaleDateString('en-SG',{day:'2-digit',month:'long',year:'numeric'}) : '<Date>';
 
   const fmtMoney=(n)=>'S$'+n.toLocaleString('en-SG',{minimumFractionDigits:2,maximumFractionDigits:2});
 
-  // Calculate fees from groups
+  // Calculate fees
   const allCalcs = groups.map(g=>({g,c:calcGroup(g)}));
   const px2 = ({g}) => (g.sameSalary&&g.pax>1)?g.pax:1;
-
-  // Deposit = sum of (salary+statutory+fee) × deposit months per group
-  const depositTotal = allCalcs.reduce((s,x)=>{
-    const px=px2(x), depM=x.g.depositMonths||0;
-    const depBase=x.g.depositIncFee!==false?x.c.totalPerPax:x.c.disbPerPax;
-    return s+depBase*px*depM;
-  },0);
-
-  // BPO Resources Expenses = gross salary + statutory obligations (excl. service fee)
+  const depositTotal = allCalcs.reduce((s,x)=>{const px=px2(x),depM=x.g.depositMonths||0;const base=x.g.depositIncFee!==false?x.c.totalPerPax:x.c.disbPerPax;return s+base*px*depM;},0);
   const bpoExpenses = allCalcs.reduce((s,x)=>s+x.c.disbPerPax*px2(x),0);
-
-  // Service fees = service fee component only
   const serviceFeeTotal = allCalcs.reduce((s,x)=>s+x.c.feePerPax*px2(x),0);
-
-  // Grand monthly total (expenses + fees)
-  const monthlyTotal = bpoExpenses + serviceFeeTotal;
-
-  // Loss of Manpower Fee — highest annual gross salary across groups as reference
-  const maxAnnualGross = allCalcs.reduce((max,x)=>{
-    const annual = x.c.grossTotal * 12;
-    return annual > max ? annual : max;
-  }, 0);
-  const lossOfManpower18pct = maxAnnualGross * 0.18;
-  const lossOfManpowerFee = Math.max(7000, lossOfManpower18pct);
-  const lompLabel = lossOfManpower18pct >= 7000
-    ? fmtMoney(lossOfManpowerFee)+' (18% of annual gross)'
-    : 'S$7,000 (minimum)';
-
-  const {Document,Paragraph,TextRun,Table,TableRow,TableCell,WidthType,BorderStyle,AlignmentType,
-         HeadingLevel,PageOrientation,convertInchesToTwip,ShadingType,UnderlineType,
-         VerticalAlign,TableLayoutType} = docx;
-
-  const NAVY='1A3C5E', LIGHT='F2F5F9';
-  const normalFont={font:'Calibri',size:22};
-  const boldFont={font:'Calibri',size:22,bold:true};
-
-  const p=(text,opts={})=>new Paragraph({
-    children:[new TextRun({text,font:'Calibri',size:opts.size||22,bold:opts.bold||false,
-      italics:opts.italic||false,underline:opts.underline?{type:UnderlineType.SINGLE}:undefined,
-      color:opts.color||undefined})],
-    alignment:opts.align||AlignmentType.JUSTIFIED,
-    spacing:{after:opts.after!==undefined?opts.after:120,before:opts.before||0},
-    heading:opts.heading||undefined,
-    indent:opts.indent?{left:720}:undefined
-  });
-
-  const bold=(text,opts={})=>p(text,{...opts,bold:true});
-  const gap=()=>p('',{after:0});
-
-  // Helper: paragraph with mixed runs
-  const mp=(runs,opts={})=>new Paragraph({
-    children:runs.map(r=>new TextRun({font:'Calibri',size:22,...r})),
-    alignment:opts.align||AlignmentType.JUSTIFIED,
-    spacing:{after:opts.after!==undefined?opts.after:120,before:opts.before||0}
-  });
-
-  const cellP=(text,opts={})=>new TableCell({
-    children:[new Paragraph({children:[new TextRun({text,font:'Calibri',size:22,bold:opts.bold||false})],
-      alignment:opts.align||AlignmentType.LEFT,spacing:{after:60}})],
-    width:opts.width?{size:opts.width,type:WidthType.DXA}:undefined,
-    shading:opts.shade?{type:ShadingType.CLEAR,color:'auto',fill:LIGHT}:undefined,
-    verticalAlign:VerticalAlign.CENTER,
-    margins:{top:80,bottom:80,left:120,right:120}
-  });
-
-  const thinBorder={style:BorderStyle.SINGLE,size:4,color:'CCCCCC'};
-  const noBorder={style:BorderStyle.NIL};
-  const noAllBorders={top:noBorder,bottom:noBorder,left:noBorder,right:noBorder};
-
-
-  const doc = new Document({
-    styles:{
-      default:{
-        document:{run:{font:'Calibri',size:22}},
-        heading1:{run:{font:'Calibri',size:26,bold:true,color:NAVY},paragraph:{spacing:{before:240,after:120}}},
-        heading2:{run:{font:'Calibri',size:22,bold:true},paragraph:{spacing:{before:200,after:80}}}
-      }
-    },
-    sections:[{
-      properties:{page:{size:{width:11906,height:16838},margin:{top:1440,bottom:1440,left:1800,right:1440}}},
-      children:[
-        // Cover
-        gap(),gap(),gap(),
-        new Paragraph({children:[new TextRun({text:'BUSINESS PROCESS OUTSOURCING AGREEMENT',font:'Calibri',size:32,bold:true,color:NAVY})],alignment:AlignmentType.CENTER,spacing:{after:200}}),
-        new Paragraph({children:[new TextRun({text:'BETWEEN ',font:'Calibri',size:22,bold:true}),new TextRun({text:clientName,font:'Calibri',size:22,bold:true}),new TextRun({text:' AND ',font:'Calibri',size:22,bold:true}),new TextRun({text:elitezName,font:'Calibri',size:22,bold:true})],alignment:AlignmentType.CENTER,spacing:{after:160}}),
-        new Paragraph({children:[new TextRun({text:'Dated ',font:'Calibri',size:22,italics:true}),new TextRun({text:agreeDate,font:'Calibri',size:22,bold:true,italics:true})],alignment:AlignmentType.CENTER,spacing:{after:0}}),
-        new Paragraph({children:[new TextRun({text:'',font:'Calibri'})],pageBreakBefore:true,spacing:{after:0}}),
-
-        // Parties
-        bold('THIS AGREEMENT is made on '+agreeDate,{after:160}),
-        bold('BETWEEN:',{after:80}),
-        mp([{text:clientName,bold:true},{text:' (Business Registration No. '},{text:clientUen,bold:true},{text:'), a company incorporated in Singapore with its registered address at '},{text:clientAddr,bold:true},{text:' (the "'},{ text:'Client',bold:true},{text:'");'}],{after:120,indent:true}),
-        p('AND',{bold:true,after:80}),
-        mp([{text:elitezName,bold:true},{text:' (Company Registration No. '},{text:elitezUen,bold:true},{text:'), a company incorporated in Singapore with its registered office at '},{text:elitezAddr,bold:true},{text:' and its associated companies via shareholding, common shareholder or memorandum of understanding ("'},{ text:E,bold:true},{text:'"),'}],{after:160,indent:true}),
-        p('(collectively the "Parties" and each a "Party").',{after:240}),
-
-        // Whereas
-        bold('WHEREAS:',{after:80}),
-        p('Elitez is engaged in the business of providing business processing outsourcing ("BPO") services, subject to the terms and conditions set out in this Agreement;',{after:80,indent:true}),
-        p('The Client and/or his nominee(s) is desirous of engaging Elitez to provide the Services (as defined below) to the Client, subject to the terms and conditions set out in this Agreement.',{after:240,indent:true}),
-        bold('IT IS HEREBY AGREED as follows:',{after:200}),
-
-        // Clause 1
-        new Paragraph({text:'1.     DEFINITIONS AND INTERPRETATION',heading:HeadingLevel.HEADING_1,spacing:{before:200,after:120}}),
-        p('[Definitions retained — refer to standard agreement text]',{italic:true,color:'888888',after:200}),
-
-        // Clause 2
-        new Paragraph({text:`2.     ENGAGEMENT OF ${E}`,heading:HeadingLevel.HEADING_1,spacing:{before:200,after:120}}),
-        p(`The Client hereby appoints and engages ${E} to provide the BPO Services, and ${E} hereby accepts such appointment, upon the terms and subject to the conditions set out in this Agreement.`,{after:200}),
-
-        // Clause 3
-        new Paragraph({text:'3.     THE SERVICES',heading:HeadingLevel.HEADING_1,spacing:{before:200,after:120}}),
-        p(`${E} shall perform the Services in accordance with the terms and conditions set out in this Agreement and shall exercise reasonable skill, care and diligence in providing the Services. ${E} shall provide such additional services (related to the Services) as may be reasonably required by the Client.`,{after:80}),
-        mp([{text:'This Agreement shall commence on '},{text:startDate,bold:true},{text:' to '},{text:endDate,bold:true},{text:'.'}],{after:80}),
-        p('Both Parties shall commit to discuss on the Agreement renewal terms at least 3 months prior to the end of the said Agreement.',{after:200}),
-
-        // Clause 4-7 (summarised)
-        new Paragraph({text:'4.     UNDERTAKINGS BY THE PARTIES',heading:HeadingLevel.HEADING_1,spacing:{before:200,after:120}}),
-        p('[Refer to standard agreement terms — Clauses 4.1 to 4.10 apply]',{italic:true,color:'888888',after:200}),
-        new Paragraph({text:'5.     REPRESENTATIONS AND WARRANTIES',heading:HeadingLevel.HEADING_1,spacing:{before:200,after:120}}),
-        p('[Refer to standard agreement terms]',{italic:true,color:'888888',after:200}),
-
-        // Clause 6 - Fees
-        new Paragraph({text:'6.     FEES AND EXPENSES',heading:HeadingLevel.HEADING_1,spacing:{before:200,after:120}}),
-        (()=>{
-          // Build deposit description from actual group deposit months
-          const depParts = allCalcs.map(({g,c})=>{
-            const px=(g.sameSalary&&g.pax>1)?g.pax:1;
-            const m=g.depositMonths||0;
-            return m>0?m+' month'+(m>1?'s':'')+' ('+TYPES[g.type].label+', '+px+' pax)':null;
-          }).filter(Boolean);
-          const depDesc = depParts.length ? depParts.join(' + ') : '2 months';
-          return mp([
-            {text:'6.1   Deposit Requirements and Adjustments: The deposit shall be equivalent to '},
-            {text:depDesc,bold:true},
-            {text:' of the service fee plus '},
-            {text:depDesc,bold:true},
-            {text:' of Business Process Outsourcing resources expenses. Should adjustments to the deposit be necessary—whether due to salary increments, deductions from manpower terminations, or other relevant factors—the Client agrees to top up the deposit to the required level, or receive a refund of any surplus, as applicable.'}
-          ],{after:80});
-        })(),
-        p('6.2   The Service Fees for the various Services provided are as set out in the Schedule(s) of this Agreement.',{after:80}),
-        p('6.3   The Loss of Manpower Fee payable is set out in Schedule 1 of this Agreement.',{after:80}),
-        p('6.4   The Client agrees to pay the Service Fees within 15 days from the date of receipt of the relevant invoice.',{after:200}),
-
-        // Clauses 7-23 summarised
-        new Paragraph({text:'7–23.  GENERAL TERMS',heading:HeadingLevel.HEADING_1,spacing:{before:200,after:120}}),
-        p('[Clauses 7 through 23 — Termination, Confidentiality, Notices, Governing Law etc. — refer to standard agreement text]',{italic:true,color:'888888',after:200}),
-
-        // Notices table
-        new Paragraph({text:'9.     NOTICES',heading:HeadingLevel.HEADING_1,spacing:{before:200,after:120}}),
-        new Table({
-          width:{size:9200,type:WidthType.DXA},
-          columnWidths:[2200,400,6600],
-          rows:[
-            new TableRow({children:[
-              new TableCell({children:[bold(clientName,{after:60})],columnSpan:3,borders:noAllBorders,margins:{top:80,bottom:40,left:0,right:0}})
-            ]}),
-            new TableRow({children:[
-              cellP('Address',{width:2200}),cellP(':',{width:400}),cellP(clientAddr,{width:6600})
-            ]}),
-            new TableRow({children:[
-              cellP('Attention',{width:2200}),cellP(':',{width:400}),cellP(clientRep+', '+clientPos,{width:6600})
-            ]}),
-            new TableRow({children:[new TableCell({children:[gap()],columnSpan:3,borders:noAllBorders})]}),
-            new TableRow({children:[
-              new TableCell({children:[bold(elitezName,{after:60})],columnSpan:3,borders:noAllBorders,margins:{top:80,bottom:40,left:0,right:0}})
-            ]}),
-            new TableRow({children:[
-              cellP('Address',{width:2200}),cellP(':',{width:400}),cellP(elitezAddr,{width:6600})
-            ]}),
-            new TableRow({children:[
-              cellP('Attention',{width:2200}),cellP(':',{width:400}),cellP(elitezRep+', '+elitezPos,{width:6600})
-            ]})
-          ]
-        }),
-
-        gap(),gap(),
-
-        // Signature block
-        new Paragraph({text:'SCHEDULE X – SERVICES AND RESPONSIBILITY',heading:HeadingLevel.HEADING_1,spacing:{before:400,after:120}}),
-        p('With respect to this Agreement, the Client shall pay Elitez the following Fees and Expenses for the following services listed below:',{after:160}),
-        bold('FEES AND EXPENSES',{after:80}),
-
-        // Fees table
-        new Table({
-          width:{size:9200,type:WidthType.DXA},
-          columnWidths:[4600,2200,2400],
-          rows:[
-            new TableRow({children:[
-              new TableCell({children:[new Paragraph({children:[new TextRun({text:'Monthly Charges',font:'Calibri',size:22,bold:true})],spacing:{after:60}})],shading:{type:ShadingType.CLEAR,color:'auto',fill:NAVY},margins:{top:80,bottom:80,left:120,right:120}}),
-              new TableCell({children:[new Paragraph({children:[new TextRun({text:'Fees (Before GST)',font:'Calibri',size:22,bold:true,color:'FFFFFF'})],alignment:AlignmentType.RIGHT,spacing:{after:60}})],shading:{type:ShadingType.CLEAR,color:'auto',fill:NAVY},margins:{top:80,bottom:80,left:120,right:120}}),
-              new TableCell({children:[new Paragraph({children:[new TextRun({text:'Remarks',font:'Calibri',size:22,bold:true,color:'FFFFFF'})],spacing:{after:60}})],shading:{type:ShadingType.CLEAR,color:'auto',fill:NAVY},margins:{top:80,bottom:80,left:120,right:120}})
-            ]}),
-            new TableRow({children:[cellP('Deposit (if any)',{width:4600}),cellP(depositTotal>0?fmtMoney(depositTotal):'S$XX,XXX',{width:2200}),cellP(depositTotal>0?'Based on '+allCalcs.map(x=>(x.g.depositMonths||0)+' mth × '+TYPES[x.g.type].label).join(', '):'',{width:2400})]}),
-            new TableRow({children:[cellP('Business Process Outsourcing Resources Expenses',{width:4600}),cellP(bpoExpenses>0?fmtMoney(bpoExpenses):'As charged',{width:2200}),cellP('Gross salary + statutory obligations (levy, medical, SDL, WICA, CPF)',{width:2400})]}),
-            new TableRow({children:[cellP('Service Fees per month',{width:4600}),cellP(serviceFeeTotal>0?fmtMoney(serviceFeeTotal):'S$XX,XXX',{width:2200}),cellP('',{width:2400})]}),
-            new TableRow({children:[cellP('Other Expenses per month',{width:4600}),cellP('As charged',{width:2200}),cellP('Additional resources agreed by Client',{width:2400})]}),
-            new TableRow({children:[cellP('Loss of Manpower Fee (whenever applicable)',{width:4600}),cellP(lompLabel,{width:2200}),cellP('Whichever is higher — $7,000 or 18% of annual gross salary',{width:2400})]}),
-          ]
-        }),
-
-        gap(),gap(),
-
-        // Signature
-        new Paragraph({children:[new TextRun({text:'',font:'Calibri'})],pageBreakBefore:true,spacing:{after:0}}),
-        p('IN WITNESS WHEREOF, the Parties have executed this Agreement as of the date first written above.',{after:400}),
-
-        new Table({
-          width:{size:9200,type:WidthType.DXA},
-          columnWidths:[4400,400,4400],
-          rows:[
-            new TableRow({children:[
-              new TableCell({children:[bold('Signed for and on behalf of',{after:40}),bold(clientName,{after:200}),p('Signature: ___________________________',{after:120}),p('Name: '+clientRep,{after:80}),p('Position: '+clientPos,{after:80}),p('Date: ___________________________',{after:0})],borders:noAllBorders}),
-              new TableCell({children:[gap()],borders:noAllBorders}),
-              new TableCell({children:[bold('Signed for and on behalf of',{after:40}),bold(elitezName,{after:200}),p('Signature: ___________________________',{after:120}),p('Name: '+elitezRep,{after:80}),p('Position: '+elitezPos,{after:80}),p('Date: ___________________________',{after:0})],borders:noAllBorders})
-            ]})
-          ]
-        }),
-
-        gap(),
-        new Paragraph({children:[new TextRun({text:'Note: Schedule X service descriptions, SLAs, and KPIs require manual completion before execution.',font:'Calibri',size:18,italics:true,color:'888888'})],spacing:{after:0}})
-      ]
-    }]
-  });
-
-  try{
-    const buf = await docx.Packer.toBuffer(doc);
-    const blob = new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'});
-    const safeName = (clientName||'Client').replace(/[^a-zA-Z0-9]/g,'_');
-    dl(blob, 'BPO_Agreement_'+safeName+'_'+agreeDate.replace(/ /g,'_')+'.docx');
-  }catch(e){ console.error(e); alert('Failed to generate BPO Agreement: '+e.message); }
-}
-
-function toggleBPOModal(){
-  const clientName  = gv('cName')     || '';
-  const clientUen   = gv('bpoClientUen')  || '';
-  const clientAddr  = gv('bpoClientAddr') || '';
-  const clientRep   = gv('bpoClientRep')  || '';
-  const clientPos   = gv('bpoClientPos')  || '';
-  const elitezName  = gv('entityName') || '';
-  const elitezUen   = gv('bpoElitezUen')  || '';
-  const elitezAddr  = gv('bpoElitezAddr') || '';
-  const elitezRep   = gv('bpoElitezRep')  || '';
-  const elitezPos   = gv('bpoElitezPos')  || '';
-  const startDate   = gv('bpoStart') ? new Date(gv('bpoStart')).toLocaleDateString('en-SG',{day:'2-digit',month:'long',year:'numeric'}) : '';
-  const endDate     = gv('bpoEnd')   ? new Date(gv('bpoEnd')).toLocaleDateString('en-SG',{day:'2-digit',month:'long',year:'numeric'}) : '';
-  const agreeDate   = gv('cDate')    ? new Date(gv('cDate')).toLocaleDateString('en-SG',{day:'2-digit',month:'long',year:'numeric'}) : '';
+  const maxAnnualGross = allCalcs.reduce((max,x)=>{const a=x.c.grossTotal*12;return a>max?a:max;},0);
+  const lossOfManpowerFee = Math.max(7000, maxAnnualGross*0.18);
+  const lompLabel = maxAnnualGross*0.18>=7000 ? fmtMoney(lossOfManpowerFee)+' (18% of annual gross)' : 'S$7,000 (minimum)';
+  const depParts = allCalcs.map(({g})=>{const m=g.depositMonths||0;return m>0?m+' month'+(m>1?'s':'')+(TYPES[g.type]?' ('+TYPES[g.type].label+')':''):null;}).filter(Boolean);
+  const depDesc = depParts.length ? depParts.join(' + ') : '2 months';
 
   // Derive short form
-  function deriveShortPreview(name){
-    const s=name.replace(/(Pte\.?\s*Ltd\.?|Ltd\.?|Inc\.?|Sdn\.?\s*Bhd\.?|Corp\.?|Co\.?|Group of Companies|Holdings|Group)/gi,'').replace(/\s*[&]\s*/g,' ').replace(/\s+/g,' ').trim();
+  function deriveShort(name){
+    const s=name.replace(/\b(Pte\.?\s*Ltd\.?|Ltd\.?|Inc\.?|Sdn\.?\s*Bhd\.?|Corp\.?|Co\.?|Group of Companies|Holdings|Group)\b/gi,'').replace(/\s*[&]\s*/g,' ').replace(/\s+/g,' ').trim();
     const w=s.split(/\s+/).filter(x=>x.length>1);
     if(!w.length) return name.split(' ')[0]||name;
     if(w.length===1) return w[0];
@@ -2003,793 +1745,262 @@ function toggleBPOModal(){
     return m[0]||w[0];
   }
   const manualShort = gv('bpoShortForm');
-  const E = manualShort || (elitezName ? deriveShortPreview(elitezName) : 'Elitez');
+  const E = manualShort || deriveShort(elitezName);
 
-  // Fee calculations
-  const fmtM=(n)=>'S$'+n.toLocaleString('en-SG',{minimumFractionDigits:2,maximumFractionDigits:2});
-  const allC=groups.map(g=>({g,c:calcGroup(g)}));
-  const px2=({g})=>(g.sameSalary&&g.pax>1)?g.pax:1;
-  const depositTotal=allC.reduce((s,x)=>{const px=px2(x),depM=x.g.depositMonths||0;const base=x.g.depositIncFee!==false?x.c.totalPerPax:x.c.disbPerPax;return s+base*px*depM;},0);
-  const bpoExp=allC.reduce((s,x)=>s+x.c.disbPerPax*px2(x),0);
-  const svcFee=allC.reduce((s,x)=>s+x.c.feePerPax*px2(x),0);
-  const maxAG=allC.reduce((max,x)=>{const a=x.c.grossTotal*12;return a>max?a:max;},0);
-  const lomp=Math.max(7000,maxAG*0.18);
-  const lompLbl=maxAG*0.18>=7000?fmtM(lomp)+' (18% of annual gross)':'S$7,000 (minimum)';
-  const depParts=allC.map(({g})=>{const m=g.depositMonths||0;return m>0?m+' month'+(m>1?'s':'')+(TYPES[g.type]?' ('+TYPES[g.type].label+')':''):null;}).filter(Boolean);
-  const depDesc=depParts.length?depParts.join(' + '):'2 months';
+  const {Document,Paragraph,TextRun,Table,TableRow,TableCell,WidthType,BorderStyle,
+         AlignmentType,HeadingLevel,VerticalAlign,ShadingType,UnderlineType,PageBreak} = docx;
 
-  // Helper: field or amber placeholder
-  const f=(val,placeholder)=>val
-    ?`<span style="font-weight:600">${esc(val)}</span>`
-    :`<span style="background:#FFF8EC;border:1px solid #F5D98A;border-radius:3px;padding:1px 6px;color:#7A5500;font-style:italic">${placeholder}</span>`;
+  const NAVY='1A3C5E';
+  const bf = (text,opts={}) => new TextRun({text,font:'Calibri',size:opts.size||22,bold:opts.bold||false,italics:opts.italic||false,color:opts.color||undefined,underline:opts.underline?{type:UnderlineType.SINGLE}:undefined});
+  const noBorder = {style:BorderStyle.NIL};
+  const noAllBorders = {top:noBorder,bottom:noBorder,left:noBorder,right:noBorder};
+  const thinBorder = {style:BorderStyle.SINGLE,size:4,color:'CCCCCC'};
+  const allBorders = {top:thinBorder,bottom:thinBorder,left:thinBorder,right:thinBorder};
 
-  const bpoHtml=`
-    <div style="text-align:center;border-bottom:2px solid #1A3C5E;padding-bottom:24px;margin-bottom:28px">
-      <div style="font-size:19px;font-weight:700;letter-spacing:.5px;margin-bottom:6px">BUSINESS PROCESS OUTSOURCING AGREEMENT</div>
-      <div style="font-size:13px;margin-bottom:4px">BETWEEN ${f(clientName,'&lt;Client Company Name&gt;')} AND ${f(elitezName,'&lt;Company Name&gt;')}</div>
-      <div style="font-size:12px;font-style:italic;color:#5d6b7a">Dated ${f(agreeDate,'&lt;Date&gt;')}</div>
-    </div>
-
-    <div style="margin-bottom:20px">
-      <div style="font-weight:700;margin-bottom:8px">THIS AGREEMENT is made on ${f(agreeDate,'&lt;Date&gt;')}</div>
-      <div style="font-weight:700;margin-bottom:8px">BETWEEN:</div>
-      <div style="margin-left:20px;margin-bottom:10px">
-        (A) ${f(clientName,'&lt;Client Company Name&gt;')} (Business Registration No. ${f(clientUen,'&lt;Client Company UEN No&gt;')}), a company incorporated in Singapore with its registered address at ${f(clientAddr,'&lt;Client Company Address&gt;')} (the "<strong>Client</strong>");
-      </div>
-      <div style="font-weight:700;margin-bottom:8px">AND</div>
-      <div style="margin-left:20px;margin-bottom:10px">
-        (B) ${f(elitezName,'&lt;Company Name&gt;')} (Company Registration No. ${f(elitezUen,'&lt;Company UEN No&gt;')}), a company incorporated in Singapore with its registered office at ${f(elitezAddr,'&lt;Company Address&gt;')} and its associated companies via shareholding, common shareholder or memorandum of understanding ("<strong>${esc(E)}</strong>"),
-      </div>
-      <div>(collectively the "<strong>Parties</strong>" and each a "<strong>Party</strong>").</div>
-    </div>
-
-    <div style="margin-bottom:20px">
-      <div style="font-size:14px;font-weight:700;border-bottom:1px solid #d0d8e4;padding-bottom:6px;margin-bottom:10px">3. THE SERVICES</div>
-      <div>${esc(E)} shall perform the Services in accordance with the terms and conditions set out in this Agreement. This Agreement shall commence on ${f(startDate,'&lt;Start Date&gt;')} to ${f(endDate,'&lt;End Date&gt;')}. Both Parties shall commit to discuss on the Agreement renewal terms at least 3 months prior to the end of the said Agreement.</div>
-    </div>
-
-    <div style="margin-bottom:20px">
-      <div style="font-size:14px;font-weight:700;border-bottom:1px solid #d0d8e4;padding-bottom:6px;margin-bottom:10px">6. FEES AND EXPENSES</div>
-      <div style="margin-bottom:8px"><strong>6.1</strong> The deposit shall be equivalent to <strong>${esc(depDesc)}</strong> of the service fee plus <strong>${esc(depDesc)}</strong> of Business Process Outsourcing resources expenses.</div>
-      <div style="margin-bottom:8px"><strong>6.2</strong> The Service Fees for the various Services provided are as set out in the Schedule(s) of this Agreement.</div>
-      <div><strong>6.3</strong> The Loss of Manpower Fee payable is set out in Schedule 1 of this Agreement.</div>
-    </div>
-
-    <div style="margin-bottom:20px">
-      <div style="font-size:14px;font-weight:700;border-bottom:1px solid #d0d8e4;padding-bottom:6px;margin-bottom:10px">9. NOTICES</div>
-      <table style="width:100%;font-size:12px;border-collapse:collapse">
-        <tr><td colspan="3" style="font-weight:700;padding:4px 0">${f(clientName,'&lt;Client Company Name&gt;')}</td></tr>
-        <tr><td style="width:120px;color:#5d6b7a">Address</td><td style="width:16px">:</td><td>${f(clientAddr,'&lt;Client Company Address&gt;')}</td></tr>
-        <tr><td style="color:#5d6b7a">Attention</td><td>:</td><td>${f(clientRep,'&lt;Representative Name&gt;')}, ${f(clientPos,'&lt;Position&gt;')}</td></tr>
-        <tr><td colspan="3" style="padding-top:10px;font-weight:700">${f(elitezName,'&lt;Company Name&gt;')}</td></tr>
-        <tr><td style="color:#5d6b7a">Address</td><td>:</td><td>${f(elitezAddr,'&lt;Company Address&gt;')}</td></tr>
-        <tr><td style="color:#5d6b7a">Attention</td><td>:</td><td>${f(elitezRep,'&lt;Representative Name&gt;')}, ${f(elitezPos,'&lt;Position&gt;')}</td></tr>
-      </table>
-    </div>
-
-    <div style="margin-bottom:20px">
-      <div style="font-size:14px;font-weight:700;border-bottom:1px solid #d0d8e4;padding-bottom:6px;margin-bottom:10px">SCHEDULE X — FEES AND EXPENSES</div>
-      <table style="width:100%;border-collapse:collapse;font-size:12px">
-        <thead>
-          <tr style="background:#1A3C5E;color:#fff">
-            <th style="padding:8px 12px;text-align:left;font-weight:600">Monthly Charges</th>
-            <th style="padding:8px 12px;text-align:right;font-weight:600">Fees (Before GST)</th>
-            <th style="padding:8px 12px;text-align:left;font-weight:600">Remarks</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr style="border-bottom:1px solid #eef0f4"><td style="padding:7px 12px">Deposit (if any)</td><td style="padding:7px 12px;text-align:right;font-weight:600">${depositTotal>0?fmtM(depositTotal):'<span style="color:#7A5500;font-style:italic">Not set</span>'}</td><td style="padding:7px 12px;font-size:11px;color:#5d6b7a">${esc(depDesc)}</td></tr>
-          <tr style="border-bottom:1px solid #eef0f4;background:#fafbfc"><td style="padding:7px 12px">BPO Resources Expenses</td><td style="padding:7px 12px;text-align:right;font-weight:600">${bpoExp>0?fmtM(bpoExp):'<span style="color:#7A5500;font-style:italic">Not calculated</span>'}</td><td style="padding:7px 12px;font-size:11px;color:#5d6b7a">Gross salary + statutory (excl. service fee)</td></tr>
-          <tr style="border-bottom:1px solid #eef0f4"><td style="padding:7px 12px">Service Fees per month</td><td style="padding:7px 12px;text-align:right;font-weight:600">${svcFee>0?fmtM(svcFee):'<span style="color:#7A5500;font-style:italic">Not set</span>'}</td><td style="padding:7px 12px"></td></tr>
-          <tr style="border-bottom:1px solid #eef0f4;background:#fafbfc"><td style="padding:7px 12px">Other Expenses per month</td><td style="padding:7px 12px;text-align:right;font-style:italic;color:#5d6b7a">As charged</td><td style="padding:7px 12px;font-size:11px;color:#5d6b7a">Additional resources agreed by Client</td></tr>
-          <tr><td style="padding:7px 12px">Loss of Manpower Fee</td><td style="padding:7px 12px;text-align:right;font-weight:600">${esc(lompLbl)}</td><td style="padding:7px 12px;font-size:11px;color:#5d6b7a">Whichever is higher — $7,000 or 18% of annual gross</td></tr>
-        </tbody>
-      </table>
-    </div>
-
-    <div>
-      <div style="font-size:14px;font-weight:700;border-bottom:1px solid #d0d8e4;padding-bottom:6px;margin-bottom:16px">SIGNATURES</div>
-      <table style="width:100%;font-size:12px">
-        <tr>
-          <td style="width:46%;vertical-align:top">
-            <div style="font-weight:700;margin-bottom:4px">Signed for and on behalf of</div>
-            <div style="font-weight:700;margin-bottom:16px">${f(clientName,'&lt;Client Company Name&gt;')}</div>
-            <div style="margin-bottom:10px">Signature: _______________________</div>
-            <div style="margin-bottom:6px">Name: ${f(clientRep,'&lt;Representative Name&gt;')}</div>
-            <div style="margin-bottom:6px">Position: ${f(clientPos,'&lt;Position&gt;')}</div>
-            <div>Date: _______________________</div>
-          </td>
-          <td style="width:8%"></td>
-          <td style="vertical-align:top">
-            <div style="font-weight:700;margin-bottom:4px">Signed for and on behalf of</div>
-            <div style="font-weight:700;margin-bottom:16px">${f(elitezName,'&lt;Company Name&gt;')}</div>
-            <div style="margin-bottom:10px">Signature: _______________________</div>
-            <div style="margin-bottom:6px">Name: ${f(elitezRep,'&lt;Representative Name&gt;')}</div>
-            <div style="margin-bottom:6px">Position: ${f(elitezPos,'&lt;Position&gt;')}</div>
-            <div>Date: _______________________</div>
-          </td>
-        </tr>
-      </table>
-    </div>
-
-    <div style="margin-top:24px;padding:10px 14px;background:#f0f4f8;border-radius:6px;font-size:11px;color:#5d6b7a;font-style:italic">
-      Note: Clauses 1–2, 4–8, 10–23 and Schedule X service descriptions, SLAs and KPIs use standard agreement text and require completion before execution.
-    </div>`;
-
-  document.getElementById('bpoModalBody').innerHTML=bpoHtml;
-  document.getElementById('bpoModal').classList.add('show');
-}
-
-function toggleDrop(id){
-  const el=document.getElementById(id);
-  const wasOpen=el.classList.contains('open');
-  document.querySelectorAll('.tbtn-drop.open').forEach(d=>d.classList.remove('open'));
-  if(!wasOpen) el.classList.add('open');
-}
-function closeDrop(id){ document.getElementById(id)?.classList.remove('open'); }
-document.addEventListener('click', e=>{
-  if(!e.target.closest('.tbtn-drop')) document.querySelectorAll('.tbtn-drop.open').forEach(d=>d.classList.remove('open'));
-});
-
-// ── Import from Excel ──
-function loadFromExcel(input){
-  const file=input.files[0]; if(!file) return;
-  const reader=new FileReader();
-  reader.onload=async e=>{
-    try{
-      if(typeof XLSX==='undefined'){
-        alert('Excel library loading, please try again in a moment.'); return;
-      }
-      const wb=XLSX.read(e.target.result,{type:'array'});
-      const result={data:{entityName:'',clientName:'',date:'',groups:[]},matched:[]};
-
-      wb.SheetNames.forEach((sheetName,si)=>{
-        const ws=wb.Sheets[sheetName];
-        const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
-        if(!rows.length) return;
-
-        // Skip summary sheet
-        if(/summary/i.test(sheetName)) return;
-
-        const g={
-          type:'wp', tabName:sheetName.replace(/\s*\(.*?\)/,'').trim(),
-          pax:1, sameSalary:true,
-          grossRows:[{id:1,label:'Monthly Remuneration',val:0,remark:''}],
-          awsMode:'none', awsAmt:0, awsMonths:1, awsLabel:'Annual Wage Supplement',
-          levy:800, medical:65, wica:1.5,
-          feeOverride:false, grpFeeMode:'flat', grpFeeFlat:1000,
-          grpFeeFloor:0, grpFeePct:0, grpFeeLabel:'Monthly Service Fees',
-          hourly:false, hourlyRate:0, hoursPerMonth:0,
-          secBond:false, secBondAmount:5000, secBondFee:140,
-          remarkLevy:'',remarkMedical:'',remarkCPF:'',remarkSDL:'',remarkWICA:'',remarkAWS:'',
-          cpfOverride:false, commission:0
-        };
-
-        // Detect worker type from sheet name
-        const sn=sheetName.toLowerCase();
-        if(sn.includes('s pass')||sn.includes('spass')) { g.type='sp'; g.levy=650; g.grpFeeFlat=1800; }
-        else if(sn.includes('prc')) { g.type='wpprc'; g.levy=800; g.grpFeeFlat=1500; }
-        else if(sn.includes('ep')||sn.includes('employment pass')) { g.type='ep'; g.levy=0; g.grpFeeFlat=1800; }
-        else if(sn.includes('local')) { g.type='local'; g.levy=0; g.grpFeeFlat=255; }
-
-        // Scan rows for data
-        rows.forEach(row=>{
-          const label=String(row[0]||'').trim();
-          const val=parseFloat(String(row[1]||'').replace(/[^0-9.-]/g,''));
-          if(!label) return;
-
-          if(/monthly remuneration/i.test(label) && !isNaN(val)){
-            g.grossRows[0].val=val;
-          } else if(/levy/i.test(label) && !isNaN(val) && !/(total|skills)/i.test(label)){
-            g.levy=val;
-          } else if(/medical insurance/i.test(label) && !isNaN(val)){
-            g.medical=val;
-          } else if(/admin fee|service fee/i.test(label) && !isNaN(val)){
-            g.feeOverride=true; g.grpFeeFlat=val;
-          } else if(/pax|headcount/i.test(label) && !isNaN(val) && val>1){
-            g.pax=val; g.sameSalary=true;
-          } else if(/entity|our entity|prepared by/i.test(label) && row[1]){
-            if(!result.data.entityName) result.data.entityName=String(row[1]).trim();
-          } else if(/client/i.test(label) && row[1] && !result.data.clientName){
-            result.data.clientName=String(row[1]).trim();
-          } else if(/date/i.test(label) && row[1] && !result.data.date){
-            result.data.date=String(row[1]).trim();
-          }
-
-          // Pax from Total column: if row[2] exists as number and > row[1] and row[1]>0
-          const tot=parseFloat(String(row[2]||'').replace(/[^0-9.-]/g,''));
-          if(!isNaN(val)&&!isNaN(tot)&&val>0&&tot>val){
-            const paxCalc=Math.round(tot/val);
-            if(paxCalc>1&&paxCalc<=50&&!g._paxSet){ g.pax=paxCalc; g._paxSet=true; g.sameSalary=true; }
-          }
-        });
-
-        if(g.grossRows[0].val>0) result.data.groups.push(g);
-      });
-
-      if(!result.data.groups.length){
-        alert('Could not detect any worker groups from this Excel file.\nMake sure it was exported from this tool.'); return;
-      }
-      applyParsed(result);
-      input.value='';
-    } catch(err){
-      alert('Failed to read Excel file: '+err.message);
-      console.error(err);
-    }
-  };
-  reader.readAsArrayBuffer(file);
-}
-
-function tabLabel(g,i){
-  if(g.tabName.trim())return g.tabName.trim();
-  const cn=$('cName').value.trim();
-  const multi=groups.length>1;
-  // With client name: "ABC Pte Ltd (Work Permit)" for multi, "ABC Pte Ltd" for single
-  if(cn) return multi?`${cn} (${TYPES[g.type].label})`:cn;
-  // No client name: use full pass type label
-  const same=groups.filter(x=>x.type===g.type);
-  const suffix=same.length>1?' '+(same.indexOf(g)+1):'';
-  return `${TYPES[g.type].label}${suffix}`;
-}
-
-/* ── Excel export ── */
-async function exportExcel(){
-  if(!groups.length){alert('Add at least one worker group first.');return;}
-  if(typeof ExcelJS==='undefined'){alert('Excel library is still loading. Please wait a moment and try again.');return;}
-  try{
-  const wb=new ExcelJS.Workbook();
-  const thin={style:'thin',color:{argb:'FF000000'}};
-  const border={top:thin,bottom:thin,left:thin,right:thin};
-  const hasRemarks=$('chkRemarks').checked;
-  const usedNames=new Set();
-
-  groups.forEach((g,i)=>{
-    const c=calcGroup(g);
-    const rows=buildRows(g,c);
-    let name=tabLabel(g,i).slice(0,31);
-    let n=1;while(usedNames.has(name)){name=tabLabel(g,i).slice(0,28)+' '+(++n);}
-    usedNames.add(name);
-    const ws=wb.addWorksheet(name,{views:[{showGridLines:false}]});
-    ws.getColumn(1).width=55;
-    ws.getColumn(2).width=13;
-    ws.getColumn(3).width=8;
-    ws.getColumn(4).width=13;
-    if(hasRemarks)ws.getColumn(5).width=22;
-
-    rows.forEach((r,idx)=>{
-      const rn=idx+1;
-      if(r.kind==='blank'){ws.getRow(rn).height=8;return;}
-      if(r.kind==='meta'){
-        ws.mergeCells(rn,1,rn,hasRemarks?5:4);
-        const mc=ws.getCell(rn,1);
-        mc.value=r.a;
-        mc.font={name:'Calibri',size:r._meta==='entity'?12:10,bold:r._meta==='entity',color:{argb:r._meta==='entity'?'FF0E2A47':'FF5D6B7A'}};
-        if(r._meta==='entity')ws.getRow(rn).height=16;
-        return;
-      }
-      if(r.kind==='disclaimer'){
-        ws.getRow(rn).height=30;
-        const dc=ws.getCell(rn,1);
-        ws.mergeCells(rn,1,rn,hasRemarks?5:4);
-        dc.value=r.a;dc.font={name:'Calibri',size:10,italic:true,color:{argb:'FF5D6B7A'}};
-        dc.alignment={wrapText:true,vertical:'top'};
-        return;
-      }
-      const ca=ws.getCell(rn,1),cb=ws.getCell(rn,2);
-      const baseFont={name:'Calibri',size:11};
-      ca.font={...baseFont,bold:r.kind==='title'||r.kind==='head'||r.bold};
-      cb.font={...baseFont};
-      if(r.kind==='title'){ca.value=r.a;return;}
-      if(r.kind==='head'){
-        ca.value=r.a;ca.border=border;
-        if(r.b){cb.value=r.b;cb.border=border;cb.font={...baseFont,bold:true};cb.alignment={wrapText:true,horizontal:'center',vertical:'top'};}
-        const paxH=ws.getCell(rn,3);paxH.border=border;paxH.font=baseFont;
-        const totH=ws.getCell(rn,4);totH.border=border;totH.font=baseFont;
-        if(r.a.includes('Gross')||r.a.includes('Statutory')){
-          if(g.pax>1){paxH.value='Pax';totH.value='Total';paxH.alignment={horizontal:'right'};totH.alignment={horizontal:'right'};}
-        }
-        if(hasRemarks){const cc=ws.getCell(rn,hasRemarks?5:3);cc.border=border;cc.font=baseFont;}
-        return;
-      }
-      // item row
-      ca.value=r.a;ca.border=border;
-      if(r.a.includes('\n')||r.a.length>60)ca.alignment={wrapText:true,vertical:'top'};
-      if(r.bold)ca.font={...baseFont,bold:true};
-      const cpax=ws.getCell(rn,3);const ctot=ws.getCell(rn,4);
-      cpax.border=border;ctot.border=border;
-      if(r.b!==''){
-        cb.value=r.b;cb.border=border;cb.numFmt=ACCT;
-        if(r.bold)cb.font={...baseFont,bold:true};
-        const xpax=(g.sameSalary&&g.pax>1)?g.pax:1;
-        if(r.showPax&&xpax>1){
-          cpax.value=xpax;cpax.alignment={horizontal:'right'};cpax.font=baseFont;
-          ctot.value=r.b*xpax;ctot.border=border;ctot.numFmt=ACCT;
-          if(r.bold)ctot.font={...baseFont,bold:true};else ctot.font=baseFont;
-        }
-      }else{cb.border=border;}
-      if(hasRemarks){
-        const cc=ws.getCell(rn,5);
-        cc.value=r.remarks||'';cc.border=border;cc.font={...baseFont,size:10,color:{argb:'FF5D6B7A'}};
-      }
-    });
+  const p = (runs,opts={}) => new Paragraph({
+    children: Array.isArray(runs) ? runs : [bf(runs,opts)],
+    alignment: opts.align||AlignmentType.JUSTIFIED,
+    spacing: {after:opts.after!==undefined?opts.after:160, before:opts.before||0},
+    indent: opts.indent ? {left:opts.indent} : undefined,
+    heading: opts.heading||undefined
   });
 
-  const buf=await wb.xlsx.writeBuffer();
-  dl(new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),fn('xlsx'));
-  }catch(err){
-    console.error('Excel export error:',err);
-    alert('Excel export failed: '+err.message);
-  }
-}
-
-/* ── PDF export ── */
-function exportPDF(){
-  if(!groups.length){alert('Add at least one worker group first.');return;}
-  // Check jsPDF is loaded
-  if(!window.jspdf||!window.jspdf.jsPDF){
-    alert('PDF library is still loading. Please wait a moment and try again.');return;
-  }
-  try{
-  const {jsPDF}=window.jspdf;
-  const doc=new jsPDF({unit:'mm',format:'a4'});
-  const NAVY=[14,42,71],GREY=[246,248,251];
-  const hasRemarks=$('chkRemarks').checked;
-  let showPaxCol=false;
-
-  groups.forEach((g,i)=>{
-    if(i>0)doc.addPage();
-    const c=calcGroup(g);
-    const rows=buildRows(g,c);
-    const tn=tabLabel(g,i);
-    const pdfEntity=$('entityName')?.value||'Elitez Group of Companies';
-    const pdfClient=$('cName')?.value||'';
-    const pdfBy=$('cBy')?.value||'';
-    const pdfDateRaw=$('cDate')?.value;
-    const pdfDate=pdfDateRaw?new Date(pdfDateRaw+'T00:00:00').toLocaleDateString('en-SG',{day:'2-digit',month:'short',year:'numeric'}):new Date().toLocaleDateString('en-SG',{day:'2-digit',month:'short',year:'numeric'});
-    doc.setFont('helvetica','bold');doc.setFontSize(13);doc.setTextColor(...NAVY);
-    doc.text(pdfEntity,14,15);
-    doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(93,107,122);
-    if(pdfClient)doc.text('Client: '+pdfClient,14,19.5);
-    const rightLines=[];
-    if(pdfBy)rightLines.push('Prepared by: '+pdfBy);
-    rightLines.push('Date: '+pdfDate);
-    rightLines.forEach((l,li)=>doc.text(l,196,15+li*4.5,{align:'right'}));
-    doc.setDrawColor(...NAVY);doc.setLineWidth(0.5);doc.line(14,23,196,23);
-
-    const epax=(g.sameSalary&&g.pax>1)?g.pax:1;
-    showPaxCol=epax>1;
-    const body=[];
-    const pdfTotCols=showPaxCol?(hasRemarks?5:4):(hasRemarks?3:2);
-    rows.forEach(r=>{
-      if(r.kind==='blank'){body.push([{content:'',colSpan:pdfTotCols,_k:'blank'}]);return;}
-      if(r.kind==='meta'){return;} // meta rows shown in header, skip in body
-      if(r.kind==='disclaimer'){body.push([{content:r.a,colSpan:pdfTotCols,_k:'disc'}]);return;}
-      if(r.kind==='title'){body.push([{content:tn,colSpan:pdfTotCols,_k:'title'}]);return;}
-      if(r.kind==='head'){
-        const paxHdr=showPaxCol?[{content:'Pax',_k:'head',_n:1},{content:'Total',_k:'head',_n:1}]:[];
-        if(hasRemarks)body.push([{content:r.a,_k:'head'},{content:r.b||'',_k:'head',_n:1},...paxHdr,{content:'Remarks',_k:'head'}]);
-        else body.push([{content:r.a,_k:'head'},{content:r.b||'',_k:'head',_n:1},...paxHdr]);
-        return;
-      }
-      const kk=r.bold?'bold':'item';
-      const bval=r.b!==''?fmtS(r.b):'';
-      const paxCells=showPaxCol&&r.showPax?[{content:String(epax),_k:kk,_n:1},{content:r.b!==''?fmtS(r.b*epax):'',_k:r.bold?'bold':'total',_n:1}]
-                    :showPaxCol?[{content:'',_k:kk},{content:'',_k:kk}]:[];
-      if(hasRemarks)body.push([{content:r.a,_k:kk},{content:bval,_k:kk,_n:1},...paxCells,{content:r.remarks||'',_k:'rem'}]);
-      else body.push([{content:r.a,_k:kk},{content:bval,_k:kk,_n:1},...paxCells]);
-    });
-
-    const pax=(g.sameSalary&&g.pax>1)?g.pax:1;
-    showPaxCol=pax>1;
-    const cols=showPaxCol
-      ?(hasRemarks?{0:{cellWidth:72},1:{cellWidth:32,halign:'right'},2:{cellWidth:12,halign:'right'},3:{cellWidth:32,halign:'right'},4:{cellWidth:34}}
-                  :{0:{cellWidth:92},1:{cellWidth:38,halign:'right'},2:{cellWidth:14,halign:'right'},3:{cellWidth:38,halign:'right'}})
-      :(hasRemarks?{0:{cellWidth:100},1:{cellWidth:45,halign:'right'},2:{cellWidth:37}}
-                  :{0:{cellWidth:137},1:{cellWidth:45,halign:'right'}});
-    doc.autoTable({
-      startY:28,margin:{left:14,right:14},
-      tableWidth:'auto',body,theme:'plain',
-      styles:{font:'helvetica',fontSize:9,cellPadding:{top:1,bottom:1,left:2,right:2},textColor:[28,39,51]},
-      columnStyles:cols,
-      didParseCell:(d)=>{
-        const raw=d.cell.raw;if(!raw)return;
-        if(raw._n)d.cell.styles.halign='right';
-        if(raw._k==='title'){d.cell.styles.fontStyle='bold';d.cell.styles.fontSize=11;d.cell.styles.textColor=NAVY;}
-        if(raw._k==='head'){d.cell.styles.fontStyle='bold';d.cell.styles.textColor=NAVY;d.cell.styles.lineWidth={bottom:0.3};d.cell.styles.lineColor=NAVY;}
-        if(raw._k==='bold'){d.cell.styles.fontStyle='bold';}
-        if(raw._k==='total'){d.cell.styles.fontStyle='bold';}
-        if(raw._k==='blank'){d.cell.styles.cellPadding=0.5;}
-        if(raw._k==='rem'){d.cell.styles.textColor=[93,107,122];d.cell.styles.fontSize=8;d.cell.styles.cellWidth='wrap';d.cell.styles.overflow='linebreak';}
-        if(raw._k==='disc'){d.cell.styles.fontStyle='italic';d.cell.styles.textColor=[93,107,122];d.cell.styles.fontSize=8;d.cell.styles.cellPadding={top:4,bottom:2,left:2,right:2};}
-      }
-    });
+  const heading = (text,level=1) => new Paragraph({
+    children:[new TextRun({text,font:'Calibri',size:24,bold:true,color:NAVY})],
+    heading: level===1?HeadingLevel.HEADING_1:HeadingLevel.HEADING_2,
+    spacing:{before:300,after:120}
   });
-  // ── Summary page (only when 2+ groups) ──
-  if(groups.length > 1){
-    doc.addPage();
-    const allCalcs = groups.map(g=>({g, c:calcGroup(g)}));
-    const paxFmt = (g,c) => (g.sameSalary&&g.pax>1)?g.pax:1;
-    const grandMonthly = allCalcs.reduce((sum,{g,c})=> sum + c.totalPerPax * paxFmt(g,c), 0);
-    const grandDisb    = allCalcs.reduce((sum,{g,c})=> sum + c.disbPerPax  * paxFmt(g,c), 0);
-    const grandFee     = allCalcs.reduce((sum,{g,c})=> sum + c.feePerPax   * paxFmt(g,c), 0);
-    const totalPax     = allCalcs.reduce((sum,{g,c})=> sum + paxFmt(g,c), 0);
-    const depM2        = num($('pDep')?.value||$('pDep2')?.value||0);
-    const depIncF      = document.getElementById('depIncludeFee')?.checked!==false||document.getElementById('depIncludeFeeSt')?.checked!==false;
-    const grandDeposit = allCalcs.reduce((sum,{g,c})=>{
-      const px=paxFmt(g,c);
-      if(depM2<=0 && !(g.type==='wpprc'&&g.secBond)) return sum;
-      const base=depIncF?(c.disbPerPax+c.feePerPax):c.disbPerPax;
-      const bond=(g.type==='wpprc'&&g.secBond)?(g.secBondAmount||5000)*px:0;
-      return sum+(base*depM2*px)+bond;
-    },0);
 
-    // header
-    const pdfEntity=$('entityName')?.value||'Elitez Group of Companies';
-    const pdfClient=$('cName')?.value||'';
-    doc.setFont('helvetica','bold');doc.setFontSize(13);doc.setTextColor(...NAVY);
-    doc.text(pdfEntity,14,15);
-    doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(93,107,122);
-    if(pdfClient)doc.text('Client: '+pdfClient,14,19.5);
-    doc.setDrawColor(...NAVY);doc.setLineWidth(0.5);doc.line(14,23,196,23);
+  const blank = () => p('',{after:100});
 
-    // summary table body
-    const sBody = [];
-    // header row
-    sBody.push([
-      {content:'Worker Group',_k:'head'},
-      {content:'Per Pax (S$)',_k:'head',_n:1},
-      {content:'Pax',_k:'head',_n:1},
-      {content:'Monthly (S$)',_k:'head',_n:1}
-    ]);
-    // group rows
-    allCalcs.forEach(({g,c},i)=>{
-      const px=paxFmt(g,c);
-      const grpLabel=g.tabName.trim()||TYPES[g.type].label;
-      sBody.push([
-        {content:grpLabel+' — '+px+' pax',_k:'item'},
-        {content:fmtS(c.totalPerPax),_k:'item',_n:1},
-        {content:String(px),_k:'item',_n:1},
-        {content:fmtS(c.totalPerPax*px),_k:'item',_n:1}
-      ]);
-    });
-    // subtotals
-    sBody.push([{content:'',colSpan:4,_k:'blank'}]);
-    sBody.push([{content:'Total salary disbursement',_k:'bold'},{content:'',_k:'bold'},{content:'',_k:'bold'},{content:fmtS(grandDisb),_k:'bold',_n:1}]);
-    sBody.push([{content:'Total admin fees',_k:'bold'},{content:'',_k:'bold'},{content:'',_k:'bold'},{content:fmtS(grandFee),_k:'bold',_n:1}]);
-    if(grandDeposit>0)
-      sBody.push([{content:'Total deposit to collect (one-time)',_k:'bold'},{content:'',_k:'bold'},{content:'',_k:'bold'},{content:fmtS(grandDeposit),_k:'bold',_n:1}]);
-    sBody.push([{content:'',colSpan:4,_k:'blank'}]);
-    sBody.push([{content:'Grand Total — Monthly to Collect',_k:'grand'},{content:'',_k:'grand'},{content:String(totalPax)+' pax',_k:'grand',_n:1},{content:fmtS(grandMonthly),_k:'grand',_n:1}]);
+  const cell = (text,opts={}) => new TableCell({
+    children:[new Paragraph({
+      children:[bf(text,{bold:opts.bold||false,italic:opts.italic||false})],
+      alignment:opts.align||AlignmentType.LEFT,
+      spacing:{after:60}
+    })],
+    width:opts.width?{size:opts.width,type:WidthType.DXA}:undefined,
+    shading:opts.shade?{type:ShadingType.CLEAR,color:'auto',fill:opts.shade}:undefined,
+    verticalAlign:VerticalAlign.CENTER,
+    margins:{top:80,bottom:80,left:120,right:120},
+    borders:opts.noborder?noAllBorders:undefined
+  });
 
-    doc.autoTable({
-      startY:28, margin:{left:14,right:14},
-      body: sBody, theme:'plain',
-      styles:{font:'helvetica',fontSize:9.5,cellPadding:{top:2,bottom:2,left:3,right:3},textColor:[28,39,51]},
-      columnStyles:{0:{cellWidth:100},1:{cellWidth:30,halign:'right'},2:{cellWidth:20,halign:'right'},3:{cellWidth:32,halign:'right'}},
-      didParseCell:(d)=>{
-        const raw=d.cell.raw; if(!raw) return;
-        if(raw._n) d.cell.styles.halign='right';
-        if(raw._k==='head'){d.cell.styles.fontStyle='bold';d.cell.styles.textColor=NAVY;d.cell.styles.lineWidth={bottom:0.4};d.cell.styles.lineColor=NAVY;}
-        if(raw._k==='bold'){d.cell.styles.fontStyle='bold';}
-        if(raw._k==='blank'){d.cell.styles.cellPadding=1;}
-        if(raw._k==='grand'){d.cell.styles.fontStyle='bold';d.cell.styles.fontSize=10.5;d.cell.styles.textColor=NAVY;d.cell.styles.fillColor=[240,245,252];}
-        if(raw._k==='item'){d.cell.styles.lineWidth={bottom:0.15};d.cell.styles.lineColor=[220,225,232];}
-      }
-    });
+  const pages = [];
 
-    // add "Summary" label below table
-    const finalY = doc.lastAutoTable.finalY + 6;
-    doc.setFont('helvetica','italic');doc.setFontSize(7.5);doc.setTextColor(93,107,122);
-    doc.text('This summary reflects the combined monthly disbursement across all worker groups for '+pdfClient+'.',14,finalY);
-  }
+  // ── COVER PAGE ──
+  pages.push(blank(),blank(),blank(),blank());
+  pages.push(new Paragraph({children:[bf('BUSINESS PROCESS OUTSOURCING AGREEMENT',{bold:true,size:32,color:NAVY})],alignment:AlignmentType.CENTER,spacing:{after:200}}));
+  pages.push(new Paragraph({children:[bf('BETWEEN ',{bold:true}),bf(clientName,{bold:true}),bf(' AND ',{bold:true}),bf(elitezName,{bold:true})],alignment:AlignmentType.CENTER,spacing:{after:160}}));
+  pages.push(new Paragraph({children:[bf('Dated ',{italic:true}),bf(agreeDate,{bold:true,italic:true})],alignment:AlignmentType.CENTER,spacing:{after:0}}));
+  pages.push(new Paragraph({children:[new PageBreak()],spacing:{after:0}}));
 
-  doc.save(fn('pdf'));
-  }catch(err){
-    console.error('PDF export error:',err);
-    alert('PDF export failed: '+err.message+'\n\nPlease check the browser console (F12) for details.');
-  }
+  // ── PARTIES ──
+  pages.push(p([bf('THIS AGREEMENT is made on ',{bold:true}),bf(agreeDate,{bold:true})],{after:200}));
+  pages.push(p([bf('BETWEEN:',{bold:true})],{after:120}));
+  pages.push(p([bf('(A)\t'),bf(clientName,{bold:true}),bf(' (Business Registration No. '),bf(clientUen,{bold:true}),bf('), a company incorporated in Singapore with its registered address at '),bf(clientAddr,{bold:true}),bf(' (the "'),bf('Client',{bold:true}),bf('");')],{after:120,indent:720}));
+  pages.push(p([bf('AND',{bold:true})],{after:120}));
+  pages.push(p([bf('(B)\t'),bf(elitezName,{bold:true}),bf(' (Company Registration No. '),bf(elitezUen,{bold:true}),bf('), a company incorporated in Singapore with its registered office at '),bf(elitezAddr,{bold:true}),bf(' and its associated companies via shareholding, common shareholder or memorandum of understanding ("'),bf(E,{bold:true}),bf('"),')],{after:120,indent:720}));
+  pages.push(p([bf('(collectively the "'),bf('Parties',{bold:true}),bf('" and each a "'),bf('Party',{bold:true}),bf('").')],{after:240}));
+
+  // ── WHEREAS ──
+  pages.push(p([bf('WHEREAS:',{bold:true})],{after:120}));
+  pages.push(p([bf('(A)\t'),bf(E),bf(' is engaged in the business of providing business processing outsourcing ("BPO") services, subject to the terms and conditions set out in this Agreement;')],{after:120,indent:720}));
+  pages.push(p([bf('(B)\tThe Client and/or his nominee(s) is desirous of engaging '),bf(E),bf(' to provide the Services (as defined below) to the Client, subject to the terms and conditions set out in this Agreement.')],{after:240,indent:720}));
+  pages.push(p([bf('IT IS HEREBY AGREED',{bold:true}),bf(' as follows:')],{after:200}));
+
+  // ── CLAUSE 1: DEFINITIONS ──
+  pages.push(heading('1.\tDEFINITIONS AND INTERPRETATION'));
+  pages.push(p('1.1\tIn this Agreement unless the context requires otherwise:-',{indent:0,after:120}));
+  const defs = [
+    ['"Addendum"','refers to a legally binding document used to modify, update, or add new terms to an existing contract after it has been signed.'],
+    ['"Affiliate"','shall mean and include any third party which directly or indirectly owns, is controlled or owned by or is under common control or ownership with a Party to the extent of at least 51% of its outstanding equity or voting rights;'],
+    ['"Business Day"','means a day (other than Saturdays, Sundays and gazetted public holidays in Singapore) on which commercial banks in Singapore are open for business;'],
+    ['"CPF Act"','means the Central Provident Fund Act (Chapter 36) as amended from time to time;'],
+    ['"CPF Contribution"','means the rate of contribution applicable under the CPF Act for the Manpower;'],
+    ['"Fees and Expenses"','refers to the fees and expenses payable under Clause 6 of this Agreement;'],
+    ['"GST"','means goods and services tax, as defined under the GST Act;'],
+    ['"Insurance Fee"','means an insurance fee to be paid to '+E+' by the Client for the insurances required for the Services;'],
+    ['"Manpower"','means the staff and/or workers supplied by '+E+' to the Client;'],
+    ['"Payroll Services"','refers to '+E+' managing and making payment of the agreed salaries to the Manpower;'],
+    ['"Personal Data"','means the same meaning as defined in the Personal Data Protection Act 2012;'],
+    ['"Salary"','means the remuneration that the Client desires for '+E+' to pay to the Manpower on a per month basis;'],
+    ['"Schedule"','refers to a section of the Agreement that contains additional terms or details;'],
+    ['"Services"','means the services provided or to be provided by '+E+' as set out in Schedule(s);'],
+    ['"S$" or "Singapore Dollars"','shall refer to the lawful currency of the Republic of Singapore.'],
+  ];
+  defs.forEach(([term,def])=>{
+    pages.push(p([bf('\t'),bf(term,{bold:true}),bf(' '+def)],{indent:720,after:80}));
+  });
+
+  // ── CLAUSE 2 ──
+  pages.push(heading('2.\tENGAGEMENT OF '+E.toUpperCase()));
+  pages.push(p('2.1\tThe Client hereby appoints and engages '+E+' to provide the BPO Services, and '+E+' hereby accepts such appointment, upon the terms and subject to the conditions set out in this Agreement.',{after:200}));
+
+  // ── CLAUSE 3 ──
+  pages.push(heading('3.\tTHE SERVICES'));
+  pages.push(p([bf('3.1\t'),bf(E),bf(' shall perform the Services in accordance with the terms and conditions set out in this Agreement and shall exercise reasonable skill, care and diligence in providing the Services.')],{after:120}));
+  pages.push(p([bf('3.2\tThis Agreement shall commence on '),bf(startDate,{bold:true}),bf(' to '),bf(endDate,{bold:true}),bf('. Both Parties shall commit to discuss on the Agreement renewal terms at least 3 months prior to the end of the said Agreement.')],{after:120}));
+  pages.push(p('3.3\t'+E+' shall provide such additional services as may be reasonably required by the Client.',{after:200}));
+
+  // ── CLAUSE 4: UNDERTAKINGS ──
+  pages.push(heading('4.\tUNDERTAKINGS BY THE PARTIES'));
+  pages.push(p('4.1\tThe Client agrees:-',{after:100}));
+  const clientUndertakings = [
+    'To designate a liaison to facilitate communication between the Client team and '+E+';',
+    'To notify '+E+' promptly of any changes in business operations that may impact the services;',
+    'To ensure a safe and compliant working environment for its manpower;',
+    'To indemnify and hold '+E+' harmless from claims arising from discrepancies not caused by '+E+';',
+    'Not to solicit and/or hire any manpower supplied by '+E+';',
+    'That '+E+' is not responsible for cash or valuables entrusted to Manpower, save where loss exceeds S$300 (capped at S$1,000) due to gross negligence of '+E+';',
+    'To cater 5% annual calendar year increment on the Service Fee;',
+    'To cater 3% annual calendar year increment on the Business Process Outsourcing Resources Expenses.',
+  ];
+  clientUndertakings.forEach((item,i)=>{
+    pages.push(p([bf('\t('+String.fromCharCode(97+i)+')\t'),bf(item)],{indent:720,after:80}));
+  });
+  pages.push(p('4.2\t'+E+' agrees:-',{after:100}));
+  const elitezUndertakings = [
+    'To provide the agreed HR services in a timely and accurate manner;',
+    'To maintain the confidentiality of all manpower data;',
+    'To comply with all applicable statutory contributions and deductions;',
+    'To be responsible for correcting errors resulting from its own negligence;',
+    'To ensure all personnel involved are appropriately trained and qualified.',
+  ];
+  elitezUndertakings.forEach((item,i)=>{
+    pages.push(p([bf('\t('+String.fromCharCode(97+i)+')\t'),bf(item)],{indent:720,after:80}));
+  });
+
+  // ── CLAUSE 5 ──
+  pages.push(heading('5.\tREPRESENTATIONS AND WARRANTIES'));
+  pages.push(p('5.1\t'+E+' represents and warrants that the Services will be performed in a professional manner and in accordance with the Schedule(s).',{after:120}));
+  pages.push(p('5.2\tThe Client represents and warrants to grant authorised representatives of '+E+' access to its premises to ensure satisfactory performance by the Manpower.',{after:200}));
+
+  // ── CLAUSE 6: FEES ──
+  pages.push(heading('6.\tFEES AND EXPENSES'));
+  pages.push(p([bf('6.1\tDeposit Requirements and Adjustments: The deposit shall be equivalent to '),bf(depDesc,{bold:true}),bf(' of the service fee plus '),bf(depDesc,{bold:true}),bf(' of Business Process Outsourcing resources expenses. Should adjustments to the deposit be necessary—whether due to salary increments, deductions from manpower terminations, or other relevant factors—the Client agrees to top up the deposit to the required level, or receive a refund of any surplus, as applicable.')],{after:120}));
+  pages.push(p('6.2\tThe Service Fees for the various Services provided are as set out in the Schedule(s) of this Agreement.',{after:120}));
+  pages.push(p('6.3\tThe Loss of Manpower Fee payable is set out in Schedule 1 of this Agreement.',{after:120}));
+  pages.push(p('6.4\tThe Client agrees to reimburse and indemnify '+E+' for all disbursements and/or claims required to support the success of the service.',{after:120}));
+  pages.push(p('6.5\tThe Client agrees to pay the Service Fees within 15 days from the date of receipt of the relevant invoice.',{after:120}));
+  pages.push(p('6.6\tIn the event the Fees are not paid in accordance with Clause 6.5, an administrative fee of 1.5% of the invoice sum is payable for every 30 days or part thereof.',{after:200}));
+
+  // ── CLAUSES 7-23 (summarised) ──
+  const stdClauses = [
+    ['7.\tTERMINATION','Either Party may give 2 months notice to terminate this Agreement without reason. Termination does not affect accrued rights of the Parties. In the event that there is no termination of this Agreement, the Fees payable to '+E+' shall continue to accrue.'],
+    ['8.\tCONFIDENTIALITY','Each Party agrees to keep strictly confidential all information arising from or in connection with this Agreement. The Parties shall comply with the requirements of the Personal Data Protection Act 2012.'],
+    ['10.\tVARIATION','No variation of this Agreement shall be valid unless it is in writing and signed by or on behalf of each Party.'],
+    ['11.\tREMEDIES AND WAIVERS','No failure or delay in exercising any right or remedy shall operate as a waiver thereof.'],
+    ['12.\tTIME OF ESSENCE','Time shall be of the essence in respect of all dates and periods specified in this Agreement.'],
+    ['13.\tSUBCONTRACTORS',E+' will not use a subcontractor without obtaining the Client prior written approval.'],
+    ['14.\tASSIGNMENTS','Neither Party may assign this Agreement without the prior written consent of the other Party.'],
+    ['15.\tCOSTS AND EXPENSES','Each Party shall bear its respective costs and expenses in respect of the preparation and execution of this Agreement.'],
+    ['16.\tLIMITATION ON LIABILITY','The aggregate liability of '+E+' shall not exceed 100% of the yearly Service Fees.'],
+    ['17.\tFORCE MAJEURE','Neither Party shall be liable for failures or delays arising from causes beyond their reasonable control.'],
+    ['18.\tILLEGALITY','The illegality or unenforceability of any provision shall not affect the validity of remaining provisions.'],
+    ['19.\tRELATIONSHIP OF PARTIES','The Parties shall at all times be independent contractors. Nothing in this Agreement creates a relationship of agency, partnership or joint venture.'],
+    ['20.\tENTIRE AGREEMENT','This Agreement contains the whole agreement between the Parties relating to the subject matter hereof.'],
+    ['21.\tCOUNTERPARTS','This Agreement may be signed by any number of counterparts, all of which together shall constitute one instrument.'],
+    ['22.\tCONTRACTS (RIGHTS OF THIRD PARTIES) ACT','A person who is not a party to this Agreement has no rights under the Contracts (Rights of Third Parties) Act.'],
+    ['23.\tGOVERNING LAW AND JURISDICTION','This Agreement shall be governed by the laws of Singapore. Any dispute shall be resolved by arbitration in Singapore under SIAC Rules.'],
+  ];
+  stdClauses.forEach(([title,text])=>{
+    pages.push(heading(title));
+    pages.push(p(text,{after:160}));
+  });
+
+  // ── CLAUSE 9: NOTICES ──
+  // (insert after clause 8)
+  const noticeIdx = pages.findIndex(pg=>pg.children?.[0]?.runs?.[0]?.text?.includes('10.\t'));
+  const noticeParas = [
+    heading('9.\tNOTICES'),
+    p('9.1\tAny notice required to be given by a Party shall be in writing. The initial addresses of the Parties are:-',{after:120}),
+    blank(),
+    new Table({
+      width:{size:9000,type:WidthType.DXA},
+      columnWidths:[2400,300,6300],
+      rows:[
+        new TableRow({children:[new TableCell({children:[p([bf(clientName,{bold:true})],{after:40})],columnSpan:3,borders:noAllBorders})]}),
+        new TableRow({children:[cell('Address'),cell(':',{noborder:true}),cell(clientAddr)]}),
+        new TableRow({children:[cell('Attention'),cell(':',{noborder:true}),cell(clientRep+', '+clientPos)]}),
+        new TableRow({children:[new TableCell({children:[blank()],columnSpan:3,borders:noAllBorders})]}),
+        new TableRow({children:[new TableCell({children:[p([bf(elitezName,{bold:true})],{after:40})],columnSpan:3,borders:noAllBorders})]}),
+        new TableRow({children:[cell('Address'),cell(':',{noborder:true}),cell(elitezAddr)]}),
+        new TableRow({children:[cell('Attention'),cell(':',{noborder:true}),cell(elitezRep+', '+elitezPos)]}),
+      ]
+    }),
+    blank(),
+  ];
+  if(noticeIdx>-1) pages.splice(noticeIdx,0,...noticeParas);
+
+  // ── SIGNATURE BLOCK ──
+  pages.push(new Paragraph({children:[new PageBreak()],spacing:{after:0}}));
+  pages.push(blank(),blank());
+  pages.push(p([bf('IN WITNESS WHEREOF',{bold:true}),bf(', the Parties have executed this Agreement as of the date first written above.')],{after:400}));
+  pages.push(new Table({
+    width:{size:9000,type:WidthType.DXA},
+    columnWidths:[4200,600,4200],
+    rows:[new TableRow({children:[
+      new TableCell({children:[
+        p([bf('Signed by')],{after:40}),
+        p([bf('for and on behalf of')],{after:40}),
+        p([bf(clientName,{bold:true})],{after:240}),
+        p('Signature: ___________________________',{after:120}),
+        p('Name: '+clientRep,{after:80}),
+        p('Position: '+clientPos,{after:80}),
+        p('Date: ___________________________',{after:0}),
+      ],borders:noAllBorders}),
+      new TableCell({children:[blank()],borders:noAllBorders}),
+      new TableCell({children:[
+        p([bf('Signed by')],{after:40}),
+        p([bf('for and on behalf of')],{after:40}),
+        p([bf(elitezName,{bold:true})],{after:240}),
+        p('Signature: ___________________________',{after:120}),
+        p('Name: '+elitezRep,{after:80}),
+        p('Position: '+elitezPos,{after:80}),
+        p('Date: ___________________________',{after:0}),
+      ],borders:noAllBorders}),
+    ]})]
+  }));
+
+  // ── SCHEDULE X ──
+  pages.push(new Paragraph({children:[new PageBreak()],spacing:{after:0}}));
+  pages.push(new Paragraph({children:[bf('SCHEDULE X – SERVICES AND RESPONSIBILITY',{bold:true,size:24,color:NAVY})],alignment:AlignmentType.CENTER,spacing:{before:200,after:200}}));
+  pages.push(p('With respect to this Agreement, the Client shall pay '+E+' the following Fees and Expenses for the following services listed below:',{after:200}));
+  pages.push(p([bf('FEES AND EXPENSES',{bold:true})],{after:120}));
+
+  // Fees table
+  const hdCell=(text)=>new TableCell({children:[new Paragraph({children:[bf(text,{bold:true,color:'FFFFFF'})],spacing:{after:60}})],shading:{type:ShadingType.CLEAR,color:'auto',fill:NAVY},margins:{top:80,bottom:80,left:120,right:120}});
+  pages.push(new Table({
+    width:{size:9000,type:WidthType.DXA},
+    columnWidths:[4200,2400,2400],
+    rows:[
+      new TableRow({children:[hdCell('Monthly Charges'),hdCell('Fees (Before GST)'),hdCell('Remarks')]}),
+      new TableRow({children:[cell('Deposit (if any)'),cell(depositTotal>0?fmtMoney(depositTotal):'S$XX,XXX',{bold:true}),cell(depDesc)]}),
+      new TableRow({children:[cell('Business Process Outsourcing Resources Expenses'),cell(bpoExpenses>0?fmtMoney(bpoExpenses):'As charged',{italic:bpoExpenses===0}),cell('Gross salary + statutory obligations')]}),
+      new TableRow({children:[cell('Service Fees per month'),cell(serviceFeeTotal>0?fmtMoney(serviceFeeTotal):'S$XX,XXX',{bold:true}),cell('')]}),
+      new TableRow({children:[cell('Other Expenses per month'),cell('As charged',{italic:true}),cell('Additional resources agreed by the Client')]}),
+      new TableRow({children:[cell('Loss of Manpower Fee (whenever applicable)'),cell(lompLabel),cell('$7,000 or 18% of annual gross salary, whichever higher')]}),
+    ]
+  }));
+  pages.push(blank());
+  pages.push(p(E+' will conduct an annual review to assess the need for a deposit top-up or refund due to any adjustments in Business Process Outsourcing Resources Expenses. Any changes will be agreed upon by both parties through an Addendum.',{after:200,italic:true}));
+
+  const doc = new Document({
+    styles:{default:{document:{run:{font:'Calibri',size:22}}}},
+    sections:[{
+      properties:{page:{size:{width:11906,height:16838},margin:{top:1440,bottom:1440,left:1800,right:1440}}},
+      children:pages
+    }]
+  });
+
+  try{
+    const blob = await docx.Packer.toBlob(doc);
+    const safeName=(clientName||'Client').replace(/[^a-zA-Z0-9]/g,'_');
+    dl(blob,'BPO_Agreement_'+safeName+'.docx');
+  }catch(e){console.error(e);alert('Failed to generate BPO Agreement: '+e.message);}
 }
 
-function exportExcelSafe(){
-  const btn=document.getElementById('xlsBtn');
-  if(btn){btn.textContent='Generating...';btn.disabled=true;}
-  setTimeout(async()=>{
-    await exportExcel();
-    if(btn){
-      setTimeout(()=>{
-        btn.disabled=false;
-        btn.innerHTML='<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 1H3a1 1 0 00-1 1v10a1 1 0 001 1h8a1 1 0 001-1V6L8 1z"/><path d="M8 1v5h5M5 8l4 4M9 8l-4 4"/></svg> Download Excel';
-      },500);
-    }
-  },50);
-}
-function exportPDFSafe(){
-  const btn=document.getElementById('pdfBtn');
-  if(btn){btn.textContent='Generating...';btn.disabled=true;}
-  setTimeout(()=>{
-    exportPDF();
-    if(btn){
-      setTimeout(()=>{
-        btn.disabled=false;
-        btn.innerHTML='<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="2" y="1" width="10" height="12" rx="1.5"/><path d="M4 4h6M4 7h6M4 10h4"/></svg> PDF';
-      },500);
-    }
-  },50);
-}
-function fn(ext){return`Monthly_Disbursement_Table_${($('cName').value||'Client').replace(/[^a-z0-9]+/gi,'_')}_${new Date().toISOString().slice(0,10)}.${ext}`;}
-function dl(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},500);}
-
-let payRemarks={fee:'',deposit:'',total:'',monthly:'',first:'',second:'',subsequent:''};
-renderFeeFields();renderPayFields();renderPayRemarks();renderSvcs();addGroup();recalc();
-
-function showWStep2(){
-  document.getElementById('wStep1').style.display='none';
-  document.getElementById('wStep2').style.display='';
-}
-
-// ── Default services by worker type ──
-const CONVERSION_REMARKS = "Rates based on duration into assignment:\n• Less than 6 months: 100% of average monthly salary\n• 6 to 12 months: 80% of average monthly salary\n• More than 12 months: 60% of average monthly salary";
-
-function defaultSvcsForTypes(types){
-  const hasForeign = types.some(t=>['wp','wpprc','sp','ep'].includes(t));
-  const hasPRC     = types.includes('wpprc');
-  const hasEP      = types.includes('ep');
-  const hasWP      = types.includes('wp');
-  const hasSP      = types.includes('sp');
-  const svcsNew=[];
-  let id=0;
-
-  // Work Pass Application — rate varies by type
-  if(hasForeign){
-    // If multiple foreign types, add one row per type with its rate in remarks
-    const foreignTypes=types.filter(t=>['wp','wpprc','sp','ep'].includes(t));
-    if(foreignTypes.length===1){
-      const t=foreignTypes[0];
-      const rates={wp:800,wpprc:1000,sp:1800,ep:1800};
-      svcsNew.push({id:++id,name:TYPES[t].label+' Application',rate:rates[t],remark:TYPES[t].label});
-    } else {
-      const rates={wp:800,wpprc:1000,sp:1800,ep:1800};
-      foreignTypes.forEach(t=>{
-        svcsNew.push({id:++id,name:TYPES[t].label+' Application',rate:rates[t],remark:TYPES[t].label});
-      });
-    }
-  }
-
-  // Work Pass Application Appeal
-  // Appeal goes in optional services section
-
-  // Cancellation — $80 for all
-  if(hasForeign) svcsNew.push({id:++id,name:'Work Pass Cancellation',rate:80,remark:'All pass types'});
-  if(hasForeign) svcsNew.push({id:++id,name:'Work Pass Application Appeal',rate:160,remark:''});
-
-  // Medical Check Up
-  if(hasForeign) svcsNew.push({id:++id,name:'Medical Check Up',rate:0,remark:'As charged + $15 admin fee'});
-
-  // Security Bond Admin Fee — WP PRC only
-  if(hasPRC) svcsNew.push({id:++id,name:'Security Bond (Admin Fee)',rate:300,remark:'Work Permit (PRC) only'});
-
-  // Education / Accreditation Verification — EP only
-  if(hasEP) svcsNew.push({id:++id,name:'Education & Accreditation Verification',rate:288,remark:'Employment Pass only'});
-
-  // Conversion / Loss of Manpower Fee — all
-  svcsNew.push({id:++id,name:'Conversion / Loss of Manpower Fee',rate:7000,remark:'$7,000 or 18% of annual gross salary, whichever higher.\n\n'+CONVERSION_REMARKS});
-
-  return svcsNew;
-}
-
-function rebuildDefaultSvcs(){
-  const activeTypes=[...document.querySelectorAll('.wtype-pick.selected[id^="fpick_"]')]
-    .map(el=>el.id.replace('fpick_',''));
-  if(!activeTypes.length) return;
-  sid=0;
-  svcs=defaultSvcsForTypes(activeTypes);
-  sid=svcs.length;
-  renderSvcs(); recalc();
-}
-
-function printComparison(){
-  const body = document.getElementById('compareModalBody')?.innerHTML;
-  if(!body) return;
-  const clientName = $('cName')?.value || 'Client';
-  const date = new Date().toLocaleDateString('en-SG',{day:'2-digit',month:'short',year:'numeric'});
-  const win = window.open('','_blank','width=900,height=700');
-  win.document.write(`<!DOCTYPE html>
-<html><head><meta charset="UTF-8">
-<title>Why Elitez — Cost Comparison</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<style>
-  *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:'Inter',sans-serif;font-size:12px;color:#1A2533;padding:32px 40px;max-width:900px;margin:0 auto}
-  h1{font-size:18px;font-weight:800;color:#0B2440;margin-bottom:4px}
-  .sub{font-size:12px;color:#5A6878;margin-bottom:24px}
-  table{width:100%;border-collapse:collapse;margin-bottom:16px;font-size:11.5px}
-  th{background:#F2F5F9;padding:7px 10px;text-align:left;font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:#0B2440}
-  th:not(:first-child){text-align:right}
-  td{padding:6px 10px;border-top:1px solid #EEF0F4}
-  td:not(:first-child){text-align:right;font-variant-numeric:tabular-nums}
-  .red{color:#C03030;font-weight:600}
-  .green{color:#1A6B42;font-weight:600}
-  .navy{color:#0B2440;font-weight:700}
-  .banner{background:#0B2440;color:#fff;border-radius:8px;padding:14px 18px;display:flex;justify-content:space-between;align-items:center;margin:16px 0}
-  .banner-amt{font-size:18px;font-weight:800}
-  .banner-pct{background:#E8820A;color:#fff;font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px}
-  .legend-lbl{font-weight:600;font-size:11.5px}
-  .legend-val{color:#E8820A;font-weight:700;font-variant-numeric:tabular-nums}
-  .note{font-size:10px;color:#8A97A6;font-style:italic;margin-top:12px}
-  .header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;padding-bottom:16px;border-bottom:2px solid #E8820A}
-  .wm{font-size:16px;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:#0B2440}
-  .wm-t{color:#E8820A}
-  @media print{body{padding:20px}button{display:none}}
-</style>
-</head><body>
-<div class="header">
-  <div>
-    <div class="wm">ELI<span class="wm-t">T</span>EZ</div>
-    <div style="font-size:10px;color:#5A6878;margin-top:2px">Internal Sales Reference — Cost Comparison</div>
-  </div>
-  <div style="text-align:right;font-size:11px;color:#5A6878">
-    <div style="font-weight:600;color:#0B2440">${esc(clientName)}</div>
-    <div>Generated: ${date}</div>
-  </div>
-</div>
-${body}
-<div class="note" style="margin-top:20px;border-top:1px solid #EEF0F4;padding-top:12px">
-  INTERNAL USE ONLY — For Elitez sales reference. Not to be shared externally without management approval.<br>
-  Hidden cost figures are industry benchmark estimates. Actual costs vary by company size, industry, and headcount.
-</div>
-</body></html>`);
-  win.document.close();
-  setTimeout(()=>win.print(), 600);
-}
-
-function downloadComparisonExcel(){
-  if(typeof ExcelJS==='undefined'){ alert('Excel library loading, please try again.'); return; }
-  const allCalcs2 = groups.map(g=>({g, c:calcGroup(g)}));
-  if(!allCalcs2.length){ alert('No worker groups to export.'); return; }
-  const paxFmt2 = g => (g.sameSalary&&g.pax>1)?g.pax:1;
-  const totalPax2 = allCalcs2.reduce((s,{g})=>s+paxFmt2(g),0);
-
-  (async()=>{
-    try{
-      const wb = new ExcelJS.Workbook();
-      const ws = wb.addWorksheet('Cost Comparison');
-      const clientName = $('cName')?.value||'Client';
-      const date = new Date().toLocaleDateString('en-SG',{day:'2-digit',month:'short',year:'numeric'});
-
-      const navy={argb:'FF0B2440'}, orange={argb:'FFE8820A'}, white={argb:'FFFFFFFF'};
-      const red={argb:'FFC03030'}, green={argb:'FF1A6B42'};
-      const lightGray={argb:'FFF2F5F9'}, border={style:'thin',color:{argb:'FFDDE3EC'}};
-      const allBorder={top:border,bottom:border,left:border,right:border};
-      const baseFont={name:'Calibri',size:11};
-
-      ws.columns=[{width:36},{width:18},{width:18},{width:16}];
-
-      // Title
-      ws.mergeCells('A1:D1');
-      const t=ws.getCell('A1');
-      t.value='Why Elitez? — Cost Comparison';
-      t.font={...baseFont,size:16,bold:true,color:white};
-      t.fill={type:'pattern',pattern:'solid',fgColor:navy};
-      t.alignment={vertical:'middle',horizontal:'left'};
-      ws.getRow(1).height=32;
-
-      ws.mergeCells('A2:D2');
-      const s=ws.getCell('A2');
-      s.value=`${clientName} · Generated ${date} · For internal Elitez sales reference only`;
-      s.font={...baseFont,size:10,italic:true,color:{argb:'FF5A6878'}};
-      s.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFF7F8FA'}};
-      ws.getRow(2).height=18;
-
-      ws.getRow(3).height=8;
-
-      // Header row
-      const hdr=ws.getRow(4);
-      ['Worker Group','Direct Hire / mth','Via Elitez / mth','Monthly Saving'].forEach((h,i)=>{
-        const c=hdr.getCell(i+1);
-        c.value=h; c.font={...baseFont,bold:true,color:white};
-        c.fill={type:'pattern',pattern:'solid',fgColor:navy};
-        c.alignment={horizontal:i===0?'left':'right',vertical:'middle'};
-        c.border=allBorder;
-      });
-      ws.getRow(4).height=20;
-
-      let row=5;
-      let grandDirect=0, grandElitez=0;
-
-      allCalcs2.forEach(({g,c})=>{
-        const px=paxFmt2(g);
-        const salary=c.grossTotal;
-        const disbPax=c.disbPerPax;
-        const elitezPax=c.totalPerPax;
-        const allTypes=allCalcs2.map(x=>x.g.type);
-        const spOnly=g.type==='sp'&&!allTypes.includes('wp')&&!allTypes.includes('wpprc');
-        const prcOnly=g.type==='wpprc'&&!allTypes.includes('wp')&&!allTypes.includes('sp');
-        const LQS=1600; const lhc=LQS+LQS*0.17+Math.min(Math.max(LQS*0.0025,2),11.25)+LQS*0.015;
-        const training=salary*0.125, attrition=salary/12, hrAdmin=100;
-        const office=['wp','wpprc'].includes(g.type)?200:500;
-        const leave=(salary/26)*(28/12);
-        const superCostTotal=(salary*1.6)*0.20;
-        const superCost=superCostTotal/Math.max(1,px);
-        const quota=!['wp','wpprc','sp'].includes(g.type)?0:spOnly?lhc*(90/10):prcOnly?lhc*(92/8):lhc*(65/35);
-        const hidden=training+attrition+hrAdmin+office+leave+superCost+quota;
-        const directPax=disbPax+hidden;
-        const saving=(directPax-elitezPax)*px;
-        grandDirect+=directPax*px; grandElitez+=elitezPax*px;
-
-        const r=ws.getRow(row++);
-        const grpLabel=(g.tabName.trim()||TYPES[g.type].label)+' ('+px+' pax)';
-        [grpLabel, directPax*px, elitezPax*px, saving].forEach((v,i)=>{
-          const cell=r.getCell(i+1);
-          cell.value=v; cell.border=allBorder; cell.font={...baseFont};
-          cell.alignment={horizontal:i===0?'left':'right'};
-          if(i===1){cell.font={...baseFont,color:red};cell.numFmt='"S$"#,##0.00';}
-          if(i===2){cell.font={...baseFont,color:green};cell.numFmt='"S$"#,##0.00';}
-          if(i===3){cell.font={...baseFont,bold:true};cell.numFmt='"S$"#,##0.00';
-            cell.font.color=saving>=0?green:red;}
-        });
-      });
-
-      if(allCalcs2.length>1){
-        const tr=ws.getRow(row++);
-        ['Grand Total',grandDirect,grandElitez,grandDirect-grandElitez].forEach((v,i)=>{
-          const cell=tr.getCell(i+1);
-          cell.value=v; cell.border=allBorder;
-          cell.fill={type:'pattern',pattern:'solid',fgColor:lightGray};
-          cell.font={...baseFont,bold:true};
-          cell.alignment={horizontal:i===0?'left':'right'};
-          if(i>0) cell.numFmt='"S$"#,##0.00';
-        });
-      }
-
-      row++;
-      // Hidden cost breakdown
-      ws.mergeCells(`A${row}:D${row}`);
-      const hh=ws.getCell(`A${row}`);
-      hh.value='How hidden costs are estimated (per pax/mth)';
-      hh.font={...baseFont,bold:true,color:white};
-      hh.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF153960'}};
-      row++;
-
-      const s2=allCalcs2[0]?.c.grossTotal||0;
-      const sType=allCalcs2[0]?.g.type||'wp';
-      const sOff=['wp','wpprc'].includes(sType)?200:500;
-      const allT2=allCalcs2.map(x=>x.g.type);
-      const spO=sType==='sp'&&!allT2.includes('wp')&&!allT2.includes('wpprc');
-      const LQS2=1600; const lhc2=LQS2+LQS2*0.17+Math.min(Math.max(LQS2*0.0025,2),11.25)+LQS2*0.015;
-      const qCost=spO?lhc2*(90/10):lhc2*(65/35);
-
-      const legendItems=[
-        ['Training & onboarding','S$'+(s2*0.125).toFixed(0)+'/mth','12.5% of salary amortised over 12 months'],
-        ['Attrition / re-hire risk','S$'+(s2/12).toFixed(0)+'/mth','1× monthly salary as re-hire cost ÷ 12'],
-        ['HR & payroll admin','S$100/pax/mth','Payroll, leave management, MOM submissions'],
-        ['Operational overhead','S$'+sOff+'/pax/mth',sOff===200?'Factory/worksite environment':'Professional office environment'],
-        ['Leave liability','S$'+(s2/26*28/12).toFixed(0)+'/mth','14 AL + 14 SL days × daily salary ÷ 12'],
-        ['Supervisory overhead','S$'+((s2*1.6)*0.20).toFixed(0)+'/grp/mth','20% of supervisor time, shared across pax'],
-        ['Work pass quota cost','S$'+qCost.toFixed(0)+'/pax/mth','DRC cost — does not apply via Elitez'],
-      ];
-
-      legendItems.forEach(([label,val,note])=>{
-        const r2=ws.getRow(row++);
-        [label,val,note,''].forEach((v,i)=>{
-          const cell=r2.getCell(i+1);
-          cell.value=v; cell.font={...baseFont,size:10};
-          cell.border={top:{style:'thin',color:{argb:'FFF0F2F5'}},bottom:{style:'thin',color:{argb:'FFF0F2F5'}},left:border,right:border};
-          if(i===1){cell.font={...baseFont,size:10,bold:true,color:orange};cell.alignment={horizontal:'center'};}
-          if(i===2) ws.mergeCells(`C${row-1}:D${row-1}`);
-        });
-      });
-
-      row++;
-      ws.mergeCells(`A${row}:D${row}`);
-      ws.getCell(`A${row}`).value='INTERNAL USE ONLY — Not to be shared externally without management approval. Benchmark estimates only.';
-      ws.getCell(`A${row}`).font={...baseFont,size:9,italic:true,color:{argb:'FF8A97A6'}};
-
-      const buf=await wb.xlsx.writeBuffer();
-      dl(new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),
-        fn('xlsx').replace('Disbursement','Cost-Comparison'));
-    }catch(e){ console.error(e); alert('Export failed: '+e.message); }
-  })();
-}
 
 function checkFeeRate(gid){
   const g=groups.find(g=>g.id===gid); if(!g) return;
