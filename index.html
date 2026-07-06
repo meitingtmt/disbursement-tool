@@ -168,7 +168,8 @@ textarea{resize:vertical;line-height:1.5}
 .xlt .disclaimer-row td{font-size:10.5px;color:var(--text2);font-style:italic;border:none!important;padding-top:10px;line-height:1.6}
 
 /* ── welcome overlay ── */
-.welcome{position:fixed;inset:0;background:rgba(11,36,64,.75);z-index:500;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
+.welcome{position:fixed;inset:0;background:rgba(11,36,64,.75);z-index:500;display:none;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
+.welcome.show{display:flex}
 .welcome-box{background:var(--surface);border-radius:18px;padding:40px 44px;max-width:480px;width:90%;box-shadow:0 24px 72px rgba(11,36,64,.32);text-align:center}
 .welcome-wm{font-size:18px;font-weight:800;letter-spacing:2.5px;text-transform:uppercase;color:var(--navy);margin-bottom:16px}
 .welcome-wm .t-orange{color:var(--orange)}
@@ -3371,12 +3372,11 @@ function downloadComparisonExcel(){
 
 
 // ── Page initialisation ──
+// Start directly in form with Work Permit group pre-selected
+startNew();
 renderPayFields();
 renderPayRemarks();
 renderFeeFields();
-renderSvcs();
-addGroup();
-recalc();
 updateShortFormHint();
 
 </script>
