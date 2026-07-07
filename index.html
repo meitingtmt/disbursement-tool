@@ -1129,8 +1129,8 @@ function buildRows(g,c){
       const isPerPax=/application/i.test(sv.name);
       return s + sv.rate * (isPerPax ? effectivePax : 1);
     }, 0);
-    // Security bond (per pax for PRC)
-    const secBondAmt = g.secBond ? (g.secBondAmount||5000) * effectivePax : 0;
+    // Security bond admin fee only (the $5000 deposit goes directly to MOM, not collected by Elitez)
+    const secBondAmt = g.secBond ? (g.secBondFee||300) * effectivePax : 0;
 
     splits.forEach((split,si)=>{
       const items=split.items||{};
@@ -1153,7 +1153,7 @@ function buildRows(g,c){
       const isLast=si===splits.length-1;
       const label=`${split.label}: ${parts.join(' + ')}`+(isLast&&note?`\n(${note})`:'');
       const remarkKey=si===0?'first':si===1&&splits.length>2?'second':isLast?'subsequent':'';
-      T('item',label,total,true,remarkKey?payRemarks[remarkKey]||'':'',isLast&&effectivePax>1);
+      T('item',label,total,true,remarkKey?payRemarks[remarkKey]||'':'');
     });
   }
   // optional services
@@ -3151,7 +3151,12 @@ function exportPDF(){
       const fmtS=n=>n===''?'':('$'+(Math.round(n*100)/100).toLocaleString('en-SG',{minimumFractionDigits:2,maximumFractionDigits:2}));
 
       rows.forEach(r=>{
-        if(r.kind==='blank'||r.kind==='meta'||r.kind==='disclaimer') return;
+        if(r.kind==='blank') return;
+        if(r.kind==='disclaimer'){
+          // handled after table
+          return;
+        }
+        if(r.kind==='meta') return; // handled in header above table
         if(r.kind==='head'){
           if(body.length) {
             // flush current body as a section
@@ -3183,9 +3188,17 @@ function exportPDF(){
         }
       });
 
+      // Build header row
+      const rateHdrPdf = bGST ? 'Rate (Before GST)' : 'Rate';
+      const hdrRow = pax>1
+        ? (hasRemarks ? [{content:'',styles:{fillColor:navy,textColor:white,fontStyle:'bold'}},{content:rateHdrPdf,styles:{fillColor:navy,textColor:white,fontStyle:'bold',halign:'right'}},{content:'Pax',styles:{fillColor:navy,textColor:white,fontStyle:'bold',halign:'right'}},{content:'Total',styles:{fillColor:navy,textColor:white,fontStyle:'bold',halign:'right'}},{content:'Remarks',styles:{fillColor:navy,textColor:white,fontStyle:'bold'}}]
+                     : [{content:'',styles:{fillColor:navy,textColor:white,fontStyle:'bold'}},{content:rateHdrPdf,styles:{fillColor:navy,textColor:white,fontStyle:'bold',halign:'right'}},{content:'Pax',styles:{fillColor:navy,textColor:white,fontStyle:'bold',halign:'right'}},{content:'Total',styles:{fillColor:navy,textColor:white,fontStyle:'bold',halign:'right'}}])
+        : (hasRemarks ? [{content:'',styles:{fillColor:navy,textColor:white,fontStyle:'bold'}},{content:rateHdrPdf,styles:{fillColor:navy,textColor:white,fontStyle:'bold',halign:'right'}},{content:'Remarks',styles:{fillColor:navy,textColor:white,fontStyle:'bold'}}]
+                      : [{content:'',styles:{fillColor:navy,textColor:white,fontStyle:'bold'}},{content:rateHdrPdf,styles:{fillColor:navy,textColor:white,fontStyle:'bold',halign:'right'}}]);
+
       doc.autoTable({
         startY:35,
-        head:[],
+        head:[hdrRow],
         body:body,
         theme:'plain',
         styles:{font:'helvetica',fontSize:9,cellPadding:2.5,lineColor:[221,227,236],lineWidth:0.2},
