@@ -1098,7 +1098,7 @@ function buildRows(g,c){
   }
   // security bond (WP PRC) — admin fee as one-time line; bond amount flows into deposit
   if(g.type==='wpprc'&&g.secBond){
-    T('item','One-time Security Bond Admin Fees',g.secBondFee||140,true,'');
+    T('item','One-time Security Bond Admin Fees',g.secBondFee||300,true,'',effectivePax>1); // per pax
     // Note: Security Bond Coverage amount is included in the deposit line below
   }
   // payment lines — sum all required one-time fees for 1st payment
@@ -1115,37 +1115,46 @@ function buildRows(g,c){
   if(pm==='simple'){
     T('item','Total Charges Per Month',c.totalPerPax,false,payRemarks.total||'',true);
   } else if(pm==='staged'){
-    const dep=num($('pDep')?.value),up=num($('pUp')?.value)||1;
-    const bundle=$('chk1stIncludesAdminFee')?.checked;
+    // ── New checkbox-based payment split builder ──
     T('blank','','',false,'');
-    if(bundle){
-      const effPax=(g.sameSalary&&g.pax>1)?g.pax:1;
-      const first=wpVal+(c.disbPerPax+c.feePerPax)*effPax;
-      const firstLabel=`1st Payment: ${wpValLabel}`+(effPax>1?' + '+effPax+' pax admin fee + '+effPax+' pax salary disbursement':' + 1 month admin fee + 1 month salary disbursement');
-      T('item',firstLabel,first,true,payRemarks.first||'');
-      T('item',`Subsequent Payment: Salary Disbursement${fm!=='none'?' + Monthly Service Fees':''}`+(note?`\n(${note})`:''),c.totalPerPax,true,payRemarks.subsequent||'',true);
-    } else {
-      T('item',`1st Payment: ${wpValLabel}`,wpVal,true,payRemarks.first||'');
+    const splits = typeof paymentSplits!=='undefined' ? paymentSplits : [
+      {label:'1st payment',items:{deposit:true,oneTime:true,monthly:false,serviceFee:false,secBond:true},svcFeeMonths:1},
+      {label:'Subsequent payment',items:{deposit:false,oneTime:false,monthly:true,serviceFee:true,secBond:false},svcFeeMonths:1}
+    ];
+
+    // Deposit amount (already calculated per pax from group card)
+    const depAmt = (g.depositMonths||0) * (g.depositIncFee!==false ? c.totalPerPax : c.disbPerPax) * effectivePax;
+    // One-time fees total (× pax for application fees)
+    const oneTimeFees = reqSvcs.reduce((s,sv)=>{
+      const isPerPax=/application/i.test(sv.name);
+      return s + sv.rate * (isPerPax ? effectivePax : 1);
+    }, 0);
+    // Security bond (per pax for PRC)
+    const secBondAmt = g.secBond ? (g.secBondAmount||5000) * effectivePax : 0;
+
+    splits.forEach((split,si)=>{
+      const items=split.items||{};
       const parts=[];
-      if(fm==='lump')parts.push(`${c.feeLabel.split('\n')[0]} for 12 months`);
-      else if(fm!=='none'&&up>1)parts.push(`Admin Fee for ${up} months`);
-      else if(fm!=='none')parts.push('1 month admin fee');
-      if(dep>0)parts.push(`Deposit`);
-      parts.push(up>1?`${up} Months Salary Disbursement`:'1st Month Salary Disbursement');
-      const depIncFeeSt=document.getElementById('depIncludeFeeSt')?.checked!==false;
-      // Components (matching the label parts built above), each counted exactly once:
-      //   - Admin fee for `up` months: only added standalone if deposit does NOT already include the fee
-      //   - Deposit: `dep` months of (salary + fee if depIncFeeSt)
-      //   - Salary disbursement for `up` months (always separate from deposit)
-      const depAmountSt = dep * (depIncFeeSt ? (c.disbPerPax + c.feePerPax) : c.disbPerPax);
-      const upfrontFee = depIncFeeSt ? 0 : (fm==='lump'?c.feeLumpTotal:c.feePerPax) * up;
-      const upfrontSalary = up * c.disbPerPax;
-      const second = upfrontFee + depAmountSt + upfrontSalary;
-      T('item',`2nd Payment: ${parts.join(' + ')}`,second,true,payRemarks.second||'');
-      T('item',`Subsequent Payment: Salary Disbursement${fm!=='none'&&fm!=='lump'?' + Monthly Service Fees':''}`+(note?`\n(${note})`:''),fm==='lump'?c.disbPerPax:c.totalPerPax,true,payRemarks.subsequent||'',true);
-    }
-  } else if(pm==='deposit'){
-    T('item',`Monthly Payment: Salary Disbursement${fm!=='none'?' + Monthly Service Fees':''}`,c.totalPerPax,true,payRemarks.monthly||'',true);
+      let total=0;
+
+      if(items.deposit && depAmt>0){ parts.push('Deposit'); total+=depAmt; }
+      if(items.oneTime && oneTimeFees>0){ parts.push('One-time fees'); total+=oneTimeFees; }
+      if(items.secBond && secBondAmt>0){ parts.push('Security Bond'); total+=secBondAmt; }
+      if(items.monthly){ parts.push('Salary Disbursement'); total+=c.disbPerPax*effectivePax; }
+      if(items.serviceFee && fm!=='none'){
+        const sfMonths=split.svcFeeMonths||1;
+        const sfAmt=(fm==='lump'?c.feeLumpTotal:c.feePerPax*effectivePax)*sfMonths;
+        parts.push(sfMonths>1?`Monthly Service Fees × ${sfMonths} mths`:'Monthly Service Fees');
+        total+=sfAmt;
+      }
+
+      if(parts.length===0) return; // skip empty rows
+
+      const isLast=si===splits.length-1;
+      const label=`${split.label}: ${parts.join(' + ')}`+(isLast&&note?`\n(${note})`:'');
+      const remarkKey=si===0?'first':si===1&&splits.length>2?'second':isLast?'subsequent':'';
+      T('item',label,total,true,remarkKey?payRemarks[remarkKey]||'':'',isLast&&effectivePax>1);
+    });
   }
   // optional services
   // ── Services: only render on first group to avoid repetition ──
